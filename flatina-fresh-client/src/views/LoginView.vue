@@ -6,7 +6,7 @@ import pancakePals from '../assets/pancake-pals.webp'
 
 const router = useRouter()
 const route = useRoute()
-const username = ref('')
+const email = ref('')
 const password = ref('')
 const error = ref('')
 const busy = ref(false)
@@ -15,7 +15,7 @@ async function submit() {
   error.value = ''
   busy.value = true
   try {
-    await login(username.value, password.value)
+    await login(email.value, password.value)
     router.replace(route.query.next || '/plan')
   } catch (e) {
     error.value = errorMessage(e, 'Could not sign in')
@@ -33,8 +33,9 @@ async function submit() {
     </div>
     <form @submit.prevent="submit">
       <div class="field">
-        <label for="u">Username</label>
-        <input id="u" v-model="username" autocomplete="username" required />
+        <label for="u">Email</label>
+        <!-- type=text, not email: accounts made before emails sign in with their username until they add one -->
+        <input id="u" v-model="email" type="text" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required />
       </div>
       <div class="field">
         <label for="p">Password</label>

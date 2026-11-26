@@ -11,6 +11,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByAdminTrue();
+
     /** Accounts made before emails, which still sign in with their (then unique) username until they add one. */
     List<AppUser> findByUsernameIgnoreCaseAndEmailIsNull(String username);
 

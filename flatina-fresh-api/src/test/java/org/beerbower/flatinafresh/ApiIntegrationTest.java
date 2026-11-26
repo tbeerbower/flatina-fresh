@@ -357,6 +357,7 @@ class ApiIntegrationTest {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertThat(me.get("email").asText()).isEqualTo("old.timer@example.com");
         assertThat(me.get("displayName").asText()).isEqualTo("Oldie");
+        assertThat(getJson("/api/family", legacyToken).get("name").asText()).isEqualTo("Oldie's family");
 
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"oldtimer\",\"password\":\"oldtimer-pass\"}"))

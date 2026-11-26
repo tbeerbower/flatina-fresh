@@ -70,7 +70,7 @@ public class AdminUserController {
                           Authentication authentication) {
         AppUser user = find(id);
         if (request.name() != null && !request.name().isBlank()) {
-            user.rename(request.name().trim());
+            familyService.rename(user, request.name().trim());
         }
         if (request.email() != null && !request.email().isBlank()) {
             AuthController.setEmail(users, user, request.email());

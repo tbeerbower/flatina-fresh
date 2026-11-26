@@ -32,15 +32,20 @@ Needs Java 21, Maven, Node 22, and PostgreSQL (or Docker).
 docker compose up -d                         # PostgreSQL on localhost:5432 (db/user/password: flatina)
 
 cd flatina-fresh-api
-ADMIN_USERNAME=tom ADMIN_PASSWORD=change-me mvn spring-boot:run
+ADMIN_EMAIL=you@example.com ADMIN_NAME=Tom ADMIN_PASSWORD=change-me mvn spring-boot:run
 
 cd ../flatina-fresh-client
 npm install
 npm run dev                                  # http://localhost:5173
 ```
 
-Sign in with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` you started the API with. That account is created on
-first start; after that, change its password in the app.
+Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` you started the API with. That account is created on
+first start; after that, change its name, email and password in the app.
+
+Everyone signs in with their email; their name is just what the app calls them and needn't be unique. Accounts
+made before emails still sign in with their old username, and the app then asks them to add an email. On start,
+the API adds `ADMIN_EMAIL` to the pre-email account named `ADMIN_USERNAME` (and renames it to `ADMIN_NAME`, if
+set).
 
 To try card scanning locally, also set `ANTHROPIC_API_KEY` when starting the API.
 
@@ -53,7 +58,8 @@ in `flatina-fresh-client`.
 | --- | --- | --- |
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL connection | local `flatina` database |
 | `JWT_SECRET` | Signs login tokens | dev-only value |
-| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | First admin account, created if missing | `admin`, none |
+| `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PASSWORD` | First admin account, created if there's no admin yet | none |
+| `ADMIN_USERNAME` | Pre-email admin account to add `ADMIN_EMAIL` to | `admin` |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated client origins | `http://localhost:5173` |
 | `ANTHROPIC_API_KEY` | Enables card scanning | none (scanning returns an error) |
 | `SCAN_MODEL` | Claude model for scanning | `claude-opus-5-5` |
@@ -79,8 +85,8 @@ Publishing a GitHub release deploys to the `production` environment instead, onc
 
 | GitHub environment setting | Kind |
 | --- | --- |
-| `PROJECT_ID`, `PROJECT_NUMBER`, `REGION`, `SQL_CONNECTION_NAME`, `DB_NAME`, `DB_USERNAME`, `RUNTIME_SERVICE_ACCOUNT`, `ADMIN_USERNAME` | variables |
-| `DB_PASSWORD`, `JWT_SECRET`, `ADMIN_PASSWORD`, `ANTHROPIC_API_KEY` (optional) | secrets |
+| `PROJECT_ID`, `PROJECT_NUMBER`, `REGION`, `SQL_CONNECTION_NAME`, `DB_NAME`, `DB_USERNAME`, `RUNTIME_SERVICE_ACCOUNT`, `ADMIN_USERNAME`, `ADMIN_NAME` | variables |
+| `DB_PASSWORD`, `JWT_SECRET`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`, `ANTHROPIC_API_KEY` (optional) | secrets |
 | `REPO`, `API_SERVICE_NAME`, `FRONTEND_SERVICE_NAME`, `CORS_ALLOWED_ORIGINS` | optional variables |
 
 ## Importing recipes

@@ -55,7 +55,9 @@ ask REGION "Region" "us-central1"
 ask ENVIRONMENT "GitHub environment" "development"
 ask GITHUB_REPO "GitHub repository" "$GITHUB_REPO_DEFAULT"
 ask SQL_INSTANCE "Cloud SQL instance name" "flatina-db"
-ask ADMIN_USERNAME "App admin username" "tom"
+ask ADMIN_EMAIL "App admin email (you sign in with it)" ""
+ask ADMIN_NAME "App admin name (what the app calls you)" "Tom"
+ADMIN_USERNAME="${ADMIN_USERNAME:-$ADMIN_NAME}"
 DB_NAME="${DB_NAME:-flatina}"
 DB_USERNAME="${DB_USERNAME:-flatina}"
 DB_PASSWORD="${DB_PASSWORD:-$(random_secret)}"
@@ -72,6 +74,8 @@ ENVIRONMENT=$ENVIRONMENT
 GITHUB_REPO=$GITHUB_REPO
 SQL_INSTANCE=$SQL_INSTANCE
 ADMIN_USERNAME=$ADMIN_USERNAME
+ADMIN_EMAIL=$ADMIN_EMAIL
+ADMIN_NAME=$ADMIN_NAME
 DB_NAME=$DB_NAME
 DB_USERNAME=$DB_USERNAME
 DB_PASSWORD=$DB_PASSWORD
@@ -173,8 +177,8 @@ gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER_SA" --role=roles/i
 
 echo "== GitHub environment '$ENVIRONMENT'"
 RUNTIME_SERVICE_ACCOUNT="$RUNTIME_SA"
-VAR_NAMES="PROJECT_ID PROJECT_NUMBER REGION SQL_CONNECTION_NAME DB_NAME DB_USERNAME RUNTIME_SERVICE_ACCOUNT ADMIN_USERNAME"
-SECRET_NAMES="DB_PASSWORD JWT_SECRET ADMIN_PASSWORD"
+VAR_NAMES="PROJECT_ID PROJECT_NUMBER REGION SQL_CONNECTION_NAME DB_NAME DB_USERNAME RUNTIME_SERVICE_ACCOUNT ADMIN_USERNAME ADMIN_NAME"
+SECRET_NAMES="DB_PASSWORD JWT_SECRET ADMIN_PASSWORD ADMIN_EMAIL"
 
 if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
   gh api -X PUT "repos/$GITHUB_REPO/environments/$ENVIRONMENT" >/dev/null
@@ -184,10 +188,10 @@ if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
 else
   echo "gh isn't available; set these on the '$ENVIRONMENT' environment in GitHub (Settings > Environments):"
   echo "Variables:"; for k in $VAR_NAMES; do echo "  $k=${!k}"; done
-  echo "Secrets: DB_PASSWORD, JWT_SECRET, ADMIN_PASSWORD (values are in gcp-deployment/deploy-config.env)"
+  echo "Secrets: DB_PASSWORD, JWT_SECRET, ADMIN_PASSWORD, ADMIN_EMAIL (values are in gcp-deployment/deploy-config.env)"
 fi
 
 echo
 echo "Done. Card scanning also needs an ANTHROPIC_API_KEY secret on the environment (optional)."
-echo "Your first login is '$ADMIN_USERNAME' with the ADMIN_PASSWORD in gcp-deployment/deploy-config.env."
+echo "Your first login is '$ADMIN_EMAIL' with the ADMIN_PASSWORD in gcp-deployment/deploy-config.env."
 echo "Push to main (or run the 'Build and Deploy' workflow) to deploy."

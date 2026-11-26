@@ -5,7 +5,7 @@ import { api, auth, errorMessage } from '../api'
 const users = ref([])
 const error = ref('')
 const message = ref('')
-const form = ref({ username: '', displayName: '', password: '', admin: false })
+const form = ref({ username: '', email: '', password: '', admin: false })
 
 const importJson = ref(null)
 const importImages = ref([])
@@ -25,9 +25,9 @@ async function addUser() {
   error.value = ''
   message.value = ''
   try {
-    await api.post('/api/admin/users', form.value)
-    message.value = `Added ${form.value.username}. Share the password with them; they can change it under their name at the top right.`
-    form.value = { username: '', displayName: '', password: '', admin: false }
+    await api.post('/api/admin/users', { ...form.value, email: form.value.email.trim(), username: form.value.username.trim() })
+    message.value = `Added ${form.value.username}. They sign in with ${form.value.email.trim()}; share the password with them, and they can change it under their name at the top right.`
+    form.value = { username: '', email: '', password: '', admin: false }
     load()
   } catch (e) {
     error.value = errorMessage(e)
@@ -35,11 +35,11 @@ async function addUser() {
 }
 
 async function resetPassword(user) {
-  const password = window.prompt(`New password for ${user.username} (at least 8 characters):`)
+  const password = window.prompt(`New password for ${user.displayName} (at least 8 characters):`)
   if (!password) return
   try {
     await api.put(`/api/admin/users/${user.id}`, { password })
-    message.value = `Password for ${user.username} was changed.`
+    message.value = `Password for ${user.displayName} was changed.`
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -55,7 +55,7 @@ async function toggleAdmin(user) {
 }
 
 async function remove(user) {
-  if (!window.confirm(`Remove ${user.username}?`)) return
+  if (!window.confirm(`Remove ${user.displayName}?`)) return
   try {
     await api.delete(`/api/admin/users/${user.id}`)
     load()
@@ -95,15 +95,15 @@ onMounted(load)
 
   <h2>Users</h2>
   <table class="card">
-    <thead><tr><th>Username</th><th>Name</th><th>Role</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
     <tbody>
       <tr v-for="u in users" :key="u.id">
-        <td>{{ u.username }}</td>
         <td>{{ u.displayName }}</td>
+        <td>{{ u.email || '(not added yet)' }}</td>
         <td>{{ u.admin ? 'Admin' : 'Member' }}</td>
         <td class="actions" style="justify-content: flex-end">
           <button class="small" @click="resetPassword(u)">Reset password</button>
-          <template v-if="u.username.toLowerCase() !== auth.user.username.toLowerCase()">
+          <template v-if="u.id !== auth.user.id">
             <button class="small" @click="toggleAdmin(u)">{{ u.admin ? 'Make member' : 'Make admin' }}</button>
             <button class="small danger" @click="remove(u)">Remove</button>
           </template>
@@ -115,8 +115,8 @@ onMounted(load)
   <h3>Add a user</h3>
   <form class="card" @submit.prevent="addUser">
     <div class="row">
-      <div class="field"><label>Username</label><input v-model="form.username" required autocomplete="off" /></div>
-      <div class="field"><label>Name</label><input v-model="form.displayName" /></div>
+      <div class="field"><label>Name</label><input v-model="form.username" required maxlength="100" autocomplete="off" /></div>
+      <div class="field"><label>Email (they sign in with it)</label><input v-model="form.email" type="email" required autocomplete="off" /></div>
       <div class="field"><label>Password (8+ characters)</label><input v-model="form.password" type="password" minlength="8" required autocomplete="new-password" /></div>
     </div>
     <label style="display: flex; gap: 0.4rem; align-items: center"><input v-model="form.admin" type="checkbox" style="width: auto" /> Admin (can manage users and import recipes)</label>

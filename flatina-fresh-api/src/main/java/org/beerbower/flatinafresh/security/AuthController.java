@@ -93,7 +93,7 @@ public class AuthController {
     public UserDto updateMe(Authentication authentication, @Valid @RequestBody UpdateProfileRequest request) {
         AppUser user = familyService.currentUser(authentication);
         if (request.name() != null && !request.name().isBlank()) {
-            user.rename(request.name().trim());
+            familyService.rename(user, request.name().trim());
         }
         if (request.email() != null && !request.email().isBlank()) {
             setEmail(users, user, request.email());

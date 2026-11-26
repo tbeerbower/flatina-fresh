@@ -20,8 +20,9 @@ import java.util.Optional;
  * <li>The account is the one with ADMIN_EMAIL, or else the pre-email account named ADMIN_USERNAME.</li>
  * <li>If that pre-email account is found and ADMIN_EMAIL is set, the email is added to it (and the name changed to
  * ADMIN_NAME, if set), so it then signs in with the email.</li>
- * <li>If there is no such account, it is created from ADMIN_EMAIL, ADMIN_NAME (or ADMIN_USERNAME) and
- * ADMIN_PASSWORD.</li>
+ * <li>If there is no such account and no admin at all yet, it is created from ADMIN_EMAIL, ADMIN_NAME (or
+ * ADMIN_USERNAME) and ADMIN_PASSWORD. (With an admin already there, the admin may have changed their email in the
+ * app, so no second admin is made.)</li>
  * </ul>
  * After that, the name, email and password are changed in the app, not here.
  */
@@ -57,11 +58,15 @@ public class AdminUserInitializer implements ApplicationRunner {
             if (user.getEmail() == null && adminEmail != null) {
                 user.setEmail(adminEmail);
                 if (StringUtils.hasText(name)) {
-                    user.rename(name.trim());
+                    familyService.rename(user, name.trim());
                 }
                 log.info("Added ADMIN_EMAIL to the admin account; it now signs in with that email");
             }
         } else {
+            if (users.existsByAdminTrue()) {
+                log.info("No account has ADMIN_EMAIL, but an admin already exists; leaving accounts as they are");
+                return;
+            }
             if (adminEmail == null || !StringUtils.hasText(password)) {
                 log.info("ADMIN_EMAIL or ADMIN_PASSWORD not set; skipping admin account setup");
                 return;

@@ -53,6 +53,18 @@ public class FamilyService {
         return user;
     }
 
+    /** Renames the user; a family still called by their old default name ("Old's family") follows the new name. */
+    @Transactional
+    public void rename(AppUser user, String name) {
+        String oldDefault = defaultName(user);
+        user.rename(name);
+        if (user.getFamilyId() != null) {
+            families.findById(user.getFamilyId())
+                    .filter(f -> f.getName().equals(oldDefault))
+                    .ifPresent(f -> f.setName(defaultName(user)));
+        }
+    }
+
     /** Takes the user out of their family into a new one of their own; an emptied family is deleted. */
     @Transactional
     public void moveToOwnFamily(AppUser user) {
