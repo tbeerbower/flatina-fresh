@@ -67,7 +67,7 @@ public class ScanService {
                 .toList();
         String title = s.title() == null || s.title().isBlank() ? "Untitled recipe" : s.title().trim();
         return new RecipeDto(null, title, s.subtitle(), s.description(), "HelloFresh", s.prepMinutes(),
-                s.totalMinutes(), s.calories(), join(s.tags()), join(s.equipment()), s.notes(), ingredients, steps,
+                s.totalMinutes(), s.calories(), null, join(s.tags()), join(s.equipment()), s.notes(), ingredients, steps,
                 List.of());
     }
 

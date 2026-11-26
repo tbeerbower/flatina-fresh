@@ -1,9 +1,12 @@
 <script setup>
-import { useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { auth, logout } from './api'
 import banner from './assets/banner.webp'
 
 const router = useRouter()
+const route = useRoute()
+const inWeeks = computed(() => route.path.startsWith('/weeks'))
 
 function signOut() {
   logout()
@@ -17,7 +20,8 @@ function signOut() {
       <img :src="banner" alt="Flatina Fresh" width="114" height="44" />
     </router-link>
     <nav class="mainnav">
-      <router-link to="/plan">This week</router-link>
+      <router-link to="/plan" exact-active-class="router-link-active" active-class="">This week</router-link>
+      <router-link to="/weeks" :class="{ 'router-link-active': inWeeks }">Weeks</router-link>
       <router-link to="/recipes">Recipes</router-link>
       <router-link to="/shopping">Shopping list</router-link>
       <router-link v-if="auth.user && auth.user.admin" to="/admin">Admin</router-link>

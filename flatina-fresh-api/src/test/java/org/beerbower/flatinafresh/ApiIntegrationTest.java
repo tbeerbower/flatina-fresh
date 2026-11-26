@@ -101,12 +101,41 @@ class ApiIntegrationTest {
             }
             if (n.get("title").asText().equals("Test Pie")) {
                 pieId = n.get("id").asLong();
+                assertThat(n.get("protein").asText()).isEqualTo("vegetarian");
+                assertThat(n.get("ingredients")).hasSize(2);
             }
         }
 
         plan("2026-11-30", tacosId, 4);
         plan("2026-12-01", pieId, 2);
         plan("2026-12-09", pieId, 2); // outside the week
+
+        JsonNode summaries = json.readTree(mvc.perform(get("/api/recipes").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        for (JsonNode n : summaries) {
+            if (n.get("id").asLong() == tacosId) {
+                assertThat(n.get("protein").asText()).isEqualTo("pork");
+                assertThat(n.get("ingredients")).hasSize(2); // pantry olive oil left out
+                assertThat(n.get("timesPlanned").asLong()).isEqualTo(1);
+            }
+            if (n.get("id").asLong() == pieId) {
+                assertThat(n.get("timesPlanned").asLong()).isEqualTo(2);
+                assertThat(n.get("lastPlanned").asText()).isEqualTo("2026-12-09");
+            }
+        }
+
+        // Weeks start on Monday; a mid-week start date snaps back to it, and empty weeks are included
+        JsonNode weeks = json.readTree(mvc.perform(get("/api/plan/weeks?start=2026-12-02&count=3")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(weeks).hasSize(3);
+        assertThat(weeks.get(0).get("start").asText()).isEqualTo("2026-11-30");
+        assertThat(weeks.get(0).get("entries")).hasSize(2);
+        assertThat(weeks.get(0).get("entries").get(0).get("coverImageId").isNull()).isFalse();
+        assertThat(weeks.get(1).get("entries")).hasSize(1);
+        assertThat(weeks.get(2).get("entries")).isEmpty();
+        mvc.perform(get("/api/plan/weeks?start=2026-12-02&count=61").header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
 
         JsonNode shopping = json.readTree(mvc.perform(get("/api/shopping-list?start=2026-11-30&end=2026-12-06")
                         .header("Authorization", "Bearer " + token))

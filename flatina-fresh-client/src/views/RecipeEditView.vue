@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, errorMessage } from '../api'
 import AuthImage from '../components/AuthImage.vue'
+import { PROTEINS } from '../recipes'
 
 const props = defineProps({ id: { type: String, default: null } })
 const router = useRouter()
@@ -11,7 +12,7 @@ const saving = ref(false)
 const newImages = ref([])
 const recipe = ref({
   title: '', subtitle: '', description: '', source: 'HelloFresh',
-  prepMinutes: null, totalMinutes: null, calories: null,
+  prepMinutes: null, totalMinutes: null, calories: null, protein: null,
   tags: '', equipment: '', notes: '', ingredients: [], steps: [], imageIds: [],
 })
 
@@ -97,6 +98,13 @@ async function save() {
       <div class="field"><label>Source</label><input v-model="recipe.source" /></div>
     </div>
     <div class="row">
+      <div class="field">
+        <label>Protein</label>
+        <select v-model="recipe.protein">
+          <option :value="null">Work it out from the ingredients</option>
+          <option v-for="p in PROTEINS" :key="p.value" :value="p.value">{{ p.icon }} {{ p.label }}</option>
+        </select>
+      </div>
       <div class="field"><label>Tags (comma separated)</label><input v-model="recipe.tags" /></div>
       <div class="field"><label>Equipment</label><input v-model="recipe.equipment" /></div>
     </div>

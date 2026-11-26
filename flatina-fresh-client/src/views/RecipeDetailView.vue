@@ -3,19 +3,23 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, errorMessage, imageUrl } from '../api'
 import { formatAmount } from '../format'
-import { formatDay, toIso } from '../dates'
+import { addDays, weekLabel, weekStart } from '../dates'
 import AuthImage from '../components/AuthImage.vue'
+import { proteinInfo } from '../recipes'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
 const recipe = ref(null)
 const error = ref('')
 const servings = ref(2)
-const planDate = ref(toIso(new Date()))
+const thisMonday = weekStart()
+const weekOptions = [0, 1, 2, 3].map((n) => addDays(thisMonday, 7 * n))
+const planWeek = ref(thisMonday)
 const planServings = ref(2)
 const planned = ref('')
 const zoomed = ref(null)
 
+const protein = computed(() => recipe.value && proteinInfo(recipe.value.protein))
 const boxItems = computed(() => (recipe.value ? recipe.value.ingredients.filter((i) => !i.pantry) : []))
 const pantryItems = computed(() => (recipe.value ? recipe.value.ingredients.filter((i) => i.pantry) : []))
 const noteLines = computed(() => (recipe.value && recipe.value.notes ? recipe.value.notes.split('\n').filter(Boolean) : []))
@@ -36,8 +40,9 @@ onMounted(async () => {
 async function addToPlan() {
   planned.value = ''
   try {
-    await api.post('/api/plan', { date: planDate.value, recipeId: recipe.value.id, servings: planServings.value })
-    planned.value = `Added to ${formatDay(planDate.value)}.`
+    // Meals are planned per week for now, on the week's Monday
+    await api.post('/api/plan', { date: planWeek.value, recipeId: recipe.value.id, servings: planServings.value })
+    planned.value = `Added to ${weekLabel(planWeek.value).toLowerCase()}.`
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -71,6 +76,7 @@ async function zoom(imageId) {
           <span v-if="recipe.totalMinutes">Total {{ recipe.totalMinutes }} min · </span>
           <span v-if="recipe.calories">{{ recipe.calories }} calories</span>
         </div>
+        <div v-if="protein" class="small" style="margin-top: 0.3rem">{{ protein.icon }} {{ protein.label }}</div>
         <div v-if="recipe.tags" style="margin-top: 0.4rem">
           <span v-for="t in recipe.tags.split(',')" :key="t" class="pill">{{ t.trim() }}</span>
         </div>
@@ -84,13 +90,15 @@ async function zoom(imageId) {
     <div class="card no-print" style="margin-bottom: 1rem">
       <div class="actions">
         <strong>Add to plan</strong>
-        <input v-model="planDate" type="date" style="width: auto" />
+        <select v-model="planWeek" style="width: auto" aria-label="Week">
+          <option v-for="w in weekOptions" :key="w" :value="w">{{ weekLabel(w) }}</option>
+        </select>
         <select v-model.number="planServings" style="width: auto">
           <option :value="2">2 servings</option>
           <option :value="4">4 servings</option>
         </select>
         <button class="primary" @click="addToPlan">Add</button>
-        <span v-if="planned" class="muted">{{ planned }} <router-link to="/plan">See plan</router-link></span>
+        <span v-if="planned" class="muted">{{ planned }} <router-link :to="`/weeks/${planWeek}`">See week</router-link></span>
       </div>
     </div>
 

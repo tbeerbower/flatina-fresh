@@ -37,3 +37,16 @@ export function formatDay(iso, opts = { weekday: 'short', month: 'short', day: '
 export function formatRange(startIso, endIso) {
   return `${formatDay(startIso, { month: 'short', day: 'numeric' })} – ${formatDay(endIso, { month: 'short', day: 'numeric', year: 'numeric' })}`
 }
+
+/** "This week", "Next week", "Last week", or "Week of Dec 7". */
+export function weekLabel(startIso) {
+  const diff = Math.round((fromIso(startIso) - fromIso(weekStart())) / (7 * 86400000))
+  if (diff === 0) return 'This week'
+  if (diff === 1) return 'Next week'
+  if (diff === -1) return 'Last week'
+  return `Week of ${formatDay(startIso, { month: 'short', day: 'numeric' })}`
+}
+
+export function isIsoDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
