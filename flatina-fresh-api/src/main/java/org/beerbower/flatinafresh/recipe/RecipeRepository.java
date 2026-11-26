@@ -20,4 +20,14 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long> {
     List<Recipe> findAllOrderByTitle();
 
     boolean existsByTitleIgnoreCase(String title);
+
+    List<Recipe> findByProteinIsNull();
+
+    /** [recipeId, name] of every non-pantry ingredient, in card order. */
+    @Query("select i.recipe.id, i.name from RecipeIngredient i where i.pantry = false order by i.recipe.id, i.position")
+    List<Object[]> findIngredientNames();
+
+    /** [recipeId, times planned, last planned date] for every recipe on the meal plan. */
+    @Query("select e.recipe.id, count(e), max(e.planDate) from MealPlanEntry e group by e.recipe.id")
+    List<Object[]> findPlanStats();
 }

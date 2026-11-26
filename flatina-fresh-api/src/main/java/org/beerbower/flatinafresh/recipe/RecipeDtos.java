@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public final class RecipeDtos {
@@ -32,6 +34,7 @@ public final class RecipeDtos {
             Integer prepMinutes,
             Integer totalMinutes,
             Integer calories,
+            String protein,
             String tags,
             String equipment,
             String notes,
@@ -40,14 +43,24 @@ public final class RecipeDtos {
             List<Long> imageIds) {
     }
 
+    /**
+     * A recipe as shown in lists. Carries what the recipe browser filters and sorts on: protein, calories, time,
+     * tags, ingredient names (pantry staples left out), when it was added, and how often it has been planned.
+     */
     public record RecipeSummaryDto(
             Long id,
             String title,
             String subtitle,
+            String description,
             Integer prepMinutes,
             Integer totalMinutes,
             Integer calories,
+            String protein,
             String tags,
-            Long coverImageId) {
+            List<String> ingredients,
+            Long coverImageId,
+            LocalDateTime createdAt,
+            long timesPlanned,
+            LocalDate lastPlanned) {
     }
 }

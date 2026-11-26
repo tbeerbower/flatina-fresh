@@ -24,6 +24,7 @@ public class Recipe {
     private Integer prepMinutes;
     private Integer totalMinutes;
     private Integer calories;
+    private String protein;
     private String tags;
     private String equipment;
     private String notes;

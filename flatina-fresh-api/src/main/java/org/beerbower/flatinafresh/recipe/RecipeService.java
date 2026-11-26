@@ -9,7 +9,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -20,11 +24,37 @@ public class RecipeService {
     @Transactional(readOnly = true)
     public List<RecipeSummaryDto> list(String query) {
         String q = StringUtils.hasText(query) ? query.trim() : null;
-        return (q == null ? recipes.findAllOrderByTitle() : recipes.search(q)).stream().map(r -> {
-            List<Long> imageIds = images.findIdsByRecipeId(r.getId());
-            return new RecipeSummaryDto(r.getId(), r.getTitle(), r.getSubtitle(), r.getPrepMinutes(),
-                    r.getTotalMinutes(), r.getCalories(), r.getTags(), imageIds.isEmpty() ? null : imageIds.get(0));
+        List<Recipe> found = q == null ? recipes.findAllOrderByTitle() : recipes.search(q);
+
+        // Load covers, ingredient names and plan stats in three queries rather than three per recipe
+        Map<Long, Long> covers = coverImageIds();
+        Map<Long, List<String>> ingredientNames = new HashMap<>();
+        for (Object[] row : recipes.findIngredientNames()) {
+            ingredientNames.computeIfAbsent((Long) row[0], k -> new ArrayList<>()).add((String) row[1]);
+        }
+        Map<Long, Object[]> planStats = new HashMap<>();
+        for (Object[] row : recipes.findPlanStats()) {
+            planStats.put((Long) row[0], row);
+        }
+
+        return found.stream().map(r -> {
+            Object[] stats = planStats.get(r.getId());
+            return new RecipeSummaryDto(r.getId(), r.getTitle(), r.getSubtitle(), r.getDescription(),
+                    r.getPrepMinutes(), r.getTotalMinutes(), r.getCalories(), r.getProtein(), r.getTags(),
+                    ingredientNames.getOrDefault(r.getId(), List.of()), covers.get(r.getId()), r.getCreatedAt(),
+                    stats == null ? 0 : ((Number) stats[1]).longValue(),
+                    stats == null ? null : (LocalDate) stats[2]);
         }).toList();
+    }
+
+    /** Cover (first) image id of every recipe that has images, by recipe id. */
+    @Transactional(readOnly = true)
+    public Map<Long, Long> coverImageIds() {
+        Map<Long, Long> covers = new HashMap<>();
+        for (Object[] row : images.findAllIdsInOrder()) {
+            covers.putIfAbsent((Long) row[0], (Long) row[1]);
+        }
+        return covers;
     }
 
     @Transactional(readOnly = true)
@@ -124,6 +154,10 @@ public class RecipeService {
             recipe.getIngredients().add(ing);
         }
 
+        String protein = Proteins.normalize(dto.protein());
+        recipe.setProtein(protein != null ? protein
+                : Proteins.classify(dto.tags(), recipe.getIngredients().stream().map(RecipeIngredient::getName).toList()));
+
         recipe.getSteps().clear();
         List<StepDto> steps = dto.steps() == null ? List.of() : dto.steps();
         for (int i = 0; i < steps.size(); i++) {
@@ -147,7 +181,7 @@ public class RecipeService {
                 .toList();
         List<Long> imageIds = r.getId() == null ? List.of() : images.findIdsByRecipeId(r.getId());
         return new RecipeDto(r.getId(), r.getTitle(), r.getSubtitle(), r.getDescription(), r.getSource(),
-                r.getPrepMinutes(), r.getTotalMinutes(), r.getCalories(), r.getTags(), r.getEquipment(), r.getNotes(),
+                r.getPrepMinutes(), r.getTotalMinutes(), r.getCalories(), r.getProtein(), r.getTags(), r.getEquipment(), r.getNotes(),
                 ingredients, steps, imageIds);
     }
 }
