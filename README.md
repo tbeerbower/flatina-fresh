@@ -8,6 +8,10 @@ combined shopping list for the week.
 - **Meal plan**: pick recipes for each day of the week, at 2 or 4 servings.
 - **Shopping list**: ingredients for the week, added up across recipes (tbsp/tsp/cups are combined),
   grouped by store section, with pantry staples listed separately. Check items off as you shop.
+- **My products**: save the brand, package size and store item number (or link) you buy for an ingredient, once.
+  The shopping list then shows that product and how many packages cover the week (6 tbsp soy sauce is one
+  10 fl oz bottle), and items you mark as "always have" start out ticked. **Copy order list** copies everything
+  still unticked, grouped by aisle, to paste beside a store's site.
 - **Admin**: add other users, reset passwords, and import recipe bundles.
 
 The stack mirrors RPOC: Spring Boot 3.5 (Java 21) + PostgreSQL + Flyway for the API, Vue 3 for the client,

@@ -152,6 +152,49 @@ class ApiIntegrationTest {
                 .isEqualByComparingTo("20");
         assertThat(find(items, "Ground Pork").get("aisle").asText()).isEqualTo("Meat & Seafood");
         assertThat(find(items, "Olive Oil").get("pantry").asBoolean()).isTrue();
+        assertThat(find(items, "Sour Cream").get("product").isNull()).isTrue();
+
+        // Save products: sour cream in quarter-cup tubs, and onions as a staple
+        String saved = mvc.perform(post("/api/products").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"ingredientName":"sour creams","brand":"Daisy","productName":"Sour Cream",
+                                 "packageSize":0.25,"packageUnit":"cups","packageLabel":"tub","storeItem":"12345"}
+                                """))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(json.readTree(saved).get("ingredientKey").asText()).isEqualTo("sour cream");
+        assertThat(json.readTree(saved).get("packageUnit").asText()).isEqualTo("cup");
+        mvc.perform(post("/api/products").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ingredientName\":\"Yellow Onion\",\"staple\":true}"))
+                .andExpect(status().isOk());
+        // Saving the same ingredient again replaces it rather than adding a second
+        mvc.perform(post("/api/products").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"ingredientName":"Sour Cream","brand":"Daisy","productName":"Sour Cream",
+                                 "packageSize":0.25,"packageUnit":"cup","packageLabel":"tub"}
+                                """))
+                .andExpect(status().isOk());
+        JsonNode products = json.readTree(mvc.perform(get("/api/products").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(products).hasSize(2);
+
+        items = json.readTree(mvc.perform(get("/api/shopping-list?start=2026-11-30&end=2026-12-06")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("items");
+        // 6 tbsp in quarter-cup tubs: 2 tubs
+        assertThat(find(items, "Sour Cream").get("packages").asInt()).isEqualTo(2);
+        assertThat(find(items, "Sour Cream").get("product").get("brand").asText()).isEqualTo("Daisy");
+        assertThat(find(items, "Yellow Onion").get("staple").asBoolean()).isTrue();
+        assertThat(find(items, "Yellow Onion").get("aisle").asText()).isEqualTo("Pantry");
+        assertThat(find(items, "Yellow Onion").get("packages").isNull()).isTrue();
+
+        mvc.perform(delete("/api/products/" + products.get(0).get("id").asLong())
+                .header("Authorization", "Bearer " + token)).andExpect(status().isNoContent());
+        mvc.perform(post("/api/products").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"ingredientName\":\" \"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
