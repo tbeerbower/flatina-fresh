@@ -22,7 +22,8 @@ public class RecipeService {
     private final RecipeImageRepository images;
 
     @Transactional(readOnly = true)
-    public List<RecipeSummaryDto> list(String query) {
+    /** Recipes are shared by everyone; how often and when they were last planned is per family. */
+    public List<RecipeSummaryDto> list(String query, Long familyId) {
         String q = StringUtils.hasText(query) ? query.trim() : null;
         List<Recipe> found = q == null ? recipes.findAllOrderByTitle() : recipes.search(q);
 
@@ -33,7 +34,7 @@ public class RecipeService {
             ingredientNames.computeIfAbsent((Long) row[0], k -> new ArrayList<>()).add((String) row[1]);
         }
         Map<Long, Object[]> planStats = new HashMap<>();
-        for (Object[] row : recipes.findPlanStats()) {
+        for (Object[] row : recipes.findPlanStats(familyId)) {
             planStats.put((Long) row[0], row);
         }
 

@@ -47,6 +47,11 @@ export function weekLabel(startIso) {
   return `Week of ${formatDay(startIso, { month: 'short', day: 'numeric' })}`
 }
 
+/** Past weeks are read-only; this week and later can be changed by anyone in the family. */
+export function isPastWeek(startIso) {
+  return weekStart(startIso) < weekStart()
+}
+
 export function isIsoDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }

@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, errorMessage } from '../api'
-import { addDays, formatRange, isIsoDate, weekLabel, weekStart } from '../dates'
+import { addDays, formatRange, isIsoDate, isPastWeek, weekLabel, weekStart } from '../dates'
 import RecipeCard from '../components/RecipeCard.vue'
 
 /** The recipes planned for one week, as cards. Without a start date it shows the current week. */
@@ -10,6 +10,7 @@ const props = defineProps({ start: { type: String, default: null } })
 const router = useRouter()
 const monday = computed(() => weekStart(isIsoDate(props.start) ? props.start : undefined))
 const end = computed(() => addDays(monday.value, 6))
+const past = computed(() => isPastWeek(monday.value))
 const entries = ref([])
 const loading = ref(true)
 const error = ref('')
@@ -65,22 +66,26 @@ async function remove(entry) {
       <button aria-label="Previous week" @click="go(-1)">←</button>
       <button aria-label="Next week" @click="go(1)">→</button>
       <router-link :to="{ path: '/shopping', query: { week: monday } }" class="button">Shopping list</router-link>
-      <router-link :to="`/weeks/${monday}/add`" class="button primary">+ Add meals</router-link>
+      <router-link v-if="!past" :to="`/weeks/${monday}/add`" class="button primary">+ Add meals</router-link>
     </div>
   </div>
   <p v-if="error" class="error">{{ error }}</p>
+  <p v-if="past" class="muted small">This week is over, so its meals can't be changed.</p>
 
   <div v-if="!loading && !entries.length" class="empty-week card">
-    <p>No meals picked for this week yet.</p>
-    <router-link :to="`/weeks/${monday}/add`" class="button primary">Choose recipes</router-link>
+    <p>{{ past ? 'No meals were planned this week.' : 'No meals picked for this week yet.' }}</p>
+    <router-link v-if="!past" :to="`/weeks/${monday}/add`" class="button primary">Choose recipes</router-link>
   </div>
   <div class="recipe-grid">
     <RecipeCard v-for="e in entries" :key="e.id" :recipe="e" :to="`/recipes/${e.recipeId}`">
-      <select :value="e.servings" class="auto small-select" aria-label="Servings" @change="setServings(e, Number($event.target.value))">
-        <option :value="2">2 servings</option>
-        <option :value="4">4 servings</option>
-      </select>
-      <button class="small danger" title="Remove from this week" @click="remove(e)">Remove</button>
+      <span v-if="past" class="muted small">{{ e.servings }} servings</span>
+      <template v-else>
+        <select :value="e.servings" class="auto small-select" aria-label="Servings" @change="setServings(e, Number($event.target.value))">
+          <option :value="2">2 servings</option>
+          <option :value="4">4 servings</option>
+        </select>
+        <button class="small danger" title="Remove from this week" @click="remove(e)">Remove</button>
+      </template>
     </RecipeCard>
   </div>
 </template>

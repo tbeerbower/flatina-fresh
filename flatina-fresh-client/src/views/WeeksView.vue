@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, errorMessage } from '../api'
-import { addDays, formatRange, isIsoDate, weekLabel, weekStart } from '../dates'
+import { addDays, formatRange, isIsoDate, isPastWeek, weekLabel, weekStart } from '../dates'
 import AuthImage from '../components/AuthImage.vue'
 
 /**
@@ -140,6 +140,6 @@ onBeforeUnmount(() => {
 
   <div v-if="selectedWeek" class="carousel-actions">
     <router-link :to="`/weeks/${selected}`" class="button primary">Open {{ lowerFirst(weekLabel(selected)) }}</router-link>
-    <router-link :to="`/weeks/${selected}/add`" class="button">+ Add meals</router-link>
+    <router-link v-if="!isPastWeek(selected)" :to="`/weeks/${selected}/add`" class="button">+ Add meals</router-link>
   </div>
 </template>

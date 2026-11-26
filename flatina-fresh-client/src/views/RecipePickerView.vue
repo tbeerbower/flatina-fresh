@@ -1,13 +1,17 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { api, errorMessage } from '../api'
-import { addDays, formatDay, formatRange, weekLabel, weekStart } from '../dates'
+import { addDays, formatDay, formatRange, isPastWeek, weekLabel, weekStart } from '../dates'
 import RecipeBrowser from '../components/RecipeBrowser.vue'
 import RecipeCard from '../components/RecipeCard.vue'
 
 /** Pick recipes for a week. Every meal is planned on the week's Monday for now. */
 const props = defineProps({ start: { type: String, required: true } })
 const monday = computed(() => weekStart(props.start))
+
+// Past weeks can't be changed; go to the week's page instead.
+if (isPastWeek(weekStart(props.start))) useRouter().replace(`/weeks/${weekStart(props.start)}`)
 const recipes = ref([])
 const entries = ref([])
 const busy = ref(new Set())

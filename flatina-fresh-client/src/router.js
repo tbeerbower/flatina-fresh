@@ -3,6 +3,7 @@ import { auth } from './api'
 
 const routes = [
   { path: '/login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
+  { path: '/join/:token', component: () => import('./views/JoinView.vue'), props: true, meta: { public: true } },
   { path: '/', redirect: '/plan' },
   { path: '/recipes', component: () => import('./views/RecipesView.vue') },
   { path: '/recipes/new', component: () => import('./views/RecipeEditView.vue') },
@@ -16,6 +17,7 @@ const routes = [
   { path: '/shopping', component: () => import('./views/ShoppingListView.vue') },
   { path: '/products', component: () => import('./views/ProductsView.vue') },
   { path: '/account', component: () => import('./views/AccountView.vue') },
+  { path: '/family', component: () => import('./views/FamilyView.vue') },
   { path: '/admin', component: () => import('./views/AdminView.vue'), meta: { admin: true } },
   { path: '/:pathMatch(.*)*', redirect: '/plan' },
 ]

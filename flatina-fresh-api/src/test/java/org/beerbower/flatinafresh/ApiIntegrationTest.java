@@ -228,6 +228,85 @@ class ApiIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void familyMembersShareThePlanAndInvitesCreateAccounts() throws Exception {
+        MockMultipartFile recipesFile = new MockMultipartFile("recipes", "recipes.json", "application/json",
+                "[{\"title\":\"Family Soup\",\"ingredients\":[],\"steps\":[]}]".getBytes());
+        mvc.perform(multipart("/api/admin/recipes/import").file(recipesFile).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+        long soupId = 0;
+        for (JsonNode n : getJson("/api/recipes", token)) {
+            if (n.get("title").asText().equals("Family Soup")) {
+                soupId = n.get("id").asLong();
+            }
+        }
+        long entryId = json.readTree(mvc.perform(post("/api/plan").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2027-01-04\",\"recipeId\":" + soupId + "}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asLong();
+
+        // Invite link: anyone with it can see the family's name and create an account in it, once
+        JsonNode invite = json.readTree(mvc.perform(post("/api/family/invites").header("Authorization", "Bearer " + token))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        String link = "/api/invites/" + invite.get("token").asText();
+        assertThat(getJson("/api/family", token).get("invites")).hasSize(1);
+        JsonNode info = json.readTree(mvc.perform(get(link)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        assertThat(info.get("familyName").asText()).isEqualTo("admin's family");
+        String accepted = mvc.perform(post(link + "/accept").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"spouse\",\"displayName\":\"Spouse\",\"password\":\"spouse-pass\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String spouse = json.readTree(accepted).get("token").asText();
+        mvc.perform(post(link + "/accept").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"spouse2\",\"password\":\"spouse-pass\"}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(get(link)).andExpect(status().isNotFound());
+
+        JsonNode family = getJson("/api/family", spouse);
+        assertThat(family.get("members")).hasSize(2);
+        assertThat(family.get("invites")).isEmpty();
+
+        // The new member sees and changes the same plan, but not past weeks (today is 2026-11-26)
+        assertThat(getJson("/api/plan?start=2027-01-04&end=2027-01-10", spouse)).hasSize(1);
+        mvc.perform(put("/api/plan/" + entryId).header("Authorization", "Bearer " + spouse)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"date\":\"2027-01-04\",\"servings\":4}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/plan").header("Authorization", "Bearer " + spouse).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-11-23\",\"recipeId\":" + soupId + "}"))
+                .andExpect(status().isCreated()); // this week
+        mvc.perform(post("/api/plan").header("Authorization", "Bearer " + spouse).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-11-16\",\"recipeId\":" + soupId + "}"))
+                .andExpect(status().isBadRequest()); // last week
+
+        // Someone in another family sees none of it
+        mvc.perform(post("/api/admin/users").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"neighbor\",\"password\":\"neighbor-pass\",\"admin\":false}"))
+                .andExpect(status().isCreated());
+        String neighbor = loginAs("neighbor", "neighbor-pass");
+        assertThat(getJson("/api/plan?start=2027-01-04&end=2027-01-10", neighbor)).isEmpty();
+        assertThat(getJson("/api/family", neighbor).get("members")).hasSize(1);
+        mvc.perform(delete("/api/plan/" + entryId).header("Authorization", "Bearer " + neighbor))
+                .andExpect(status().isNotFound());
+
+        // Removing a member moves them to a family of their own
+        long spouseId = 0;
+        for (JsonNode m : family.get("members")) {
+            if (m.get("username").asText().equals("spouse")) {
+                spouseId = m.get("id").asLong();
+            }
+        }
+        mvc.perform(delete("/api/family/members/" + spouseId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        assertThat(getJson("/api/plan?start=2027-01-04&end=2027-01-10", spouse)).isEmpty();
+        assertThat(getJson("/api/plan?start=2027-01-04&end=2027-01-10", token)).hasSize(1);
+    }
+
+    private JsonNode getJson(String url, String bearer) throws Exception {
+        return json.readTree(mvc.perform(get(url).header("Authorization", "Bearer " + bearer))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+    }
+
     private void plan(String date, long recipeId, int servings) throws Exception {
         mvc.perform(post("/api/plan").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)

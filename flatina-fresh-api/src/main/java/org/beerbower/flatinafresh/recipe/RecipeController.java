@@ -2,12 +2,14 @@ package org.beerbower.flatinafresh.recipe;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.beerbower.flatinafresh.family.FamilyService;
 import org.beerbower.flatinafresh.recipe.RecipeDtos.RecipeDto;
 import org.beerbower.flatinafresh.recipe.RecipeDtos.RecipeSummaryDto;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
@@ -18,10 +20,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RecipeController {
     private final RecipeService service;
+    private final FamilyService familyService;
 
     @GetMapping
-    public List<RecipeSummaryDto> list(@RequestParam(required = false) String q) {
-        return service.list(q);
+    public List<RecipeSummaryDto> list(@RequestParam(required = false) String q, Authentication authentication) {
+        return service.list(q, familyService.currentFamilyId(authentication));
     }
 
     @GetMapping("/{id}")

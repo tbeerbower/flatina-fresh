@@ -17,6 +17,9 @@ public class MealPlanEntry {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** The family whose plan this is. */
+    private Long familyId;
+
     private LocalDate planDate;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
