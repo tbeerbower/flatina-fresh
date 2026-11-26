@@ -55,7 +55,7 @@ public class ShoppingListService {
 
         Map<String, GroceryProduct> saved = new HashMap<>();
         if (!byName.isEmpty()) {
-            products.findAll().forEach(p -> saved.put(p.getIngredientKey(), p));
+            products.findByFamilyId(familyId).forEach(p -> saved.put(p.getIngredientKey(), p));
         }
         List<ItemDto> items = byName.values().stream()
                 .map(acc -> acc.toDto(saved.get(acc.productKey)))

@@ -17,6 +17,9 @@ public class GroceryProduct {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** The family that saved it. */
+    private Long familyId;
+
     /** {@link ShoppingListService#normalizeName} of the ingredient name. */
     private String ingredientKey;
     private String ingredientName;
