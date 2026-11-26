@@ -1,0 +1,168 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy to
+        required: true
+        default: development
+        type: choice
+        options: [ development, production ]
+
+concurrency:
+  group: deploy-${{ github.event_name == 'release' && 'production' || github.event.inputs.environment || 'development' }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'release' && 'production' || github.event.inputs.environment || 'development' }}
+
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+
+    env:
+      PROJECT_ID: ${{ vars.PROJECT_ID }}
+      PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+      REGION: ${{ vars.REGION || 'us-central1' }}
+      REPO: ${{ vars.REPO || 'flatina-repo' }}
+      API_SERVICE_NAME: ${{ vars.API_SERVICE_NAME || 'flatina-api' }}
+      FRONTEND_SERVICE_NAME: ${{ vars.FRONTEND_SERVICE_NAME || 'flatina-client' }}
+      SQL_CONNECTION_NAME: ${{ vars.SQL_CONNECTION_NAME }}
+      DB_NAME: ${{ vars.DB_NAME || 'flatina' }}
+      DB_USERNAME: ${{ vars.DB_USERNAME || 'flatina' }}
+      RUNTIME_SERVICE_ACCOUNT: ${{ vars.RUNTIME_SERVICE_ACCOUNT }}
+      DEPLOY_ENV: ${{ github.event_name == 'release' && 'production' || github.event.inputs.environment || 'development' }}
+      VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Image names
+        run: |
+          BASE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}"
+          echo "API_IMAGE=${BASE}/flatina-api" >> "$GITHUB_ENV"
+          echo "CLIENT_IMAGE=${BASE}/flatina-client" >> "$GITHUB_ENV"
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./flatina-fresh-api
+          push: true
+          tags: |
+            ${{ env.API_IMAGE }}:${{ env.DEPLOY_ENV }}
+            ${{ env.API_IMAGE }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.API_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.API_IMAGE }}:buildcache,mode=max
+
+      - name: Build and push client image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./flatina-fresh-client
+          push: true
+          tags: |
+            ${{ env.CLIENT_IMAGE }}:${{ env.DEPLOY_ENV }}
+            ${{ env.CLIENT_IMAGE }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.CLIENT_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.CLIENT_IMAGE }}:buildcache,mode=max
+
+      - name: Deploy to Cloud Run
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_USERNAME: ${{ vars.ADMIN_USERNAME || 'admin' }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EXTRA_CORS_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS }}
+        run: |
+          set -euo pipefail
+
+          # All URLs Cloud Run serves a service on (it has two formats), comma-separated
+          service_urls() {
+            gcloud run services describe "$1" --region "$REGION" \
+              --format='value(metadata.annotations."run.googleapis.com/urls")' 2>/dev/null \
+              | python3 -c 'import json,sys; t=sys.stdin.read().strip(); print(",".join(json.loads(t)) if t else "")'
+          }
+          service_url() {
+            gcloud run services describe "$1" --region "$REGION" --format='value(status.url)' 2>/dev/null || true
+          }
+
+          # Env vars go through a YAML file so secrets and comma lists need no escaping
+          write_api_env() {
+            CORS="$1" python3 - <<'PY'
+          import json, os
+          env = {
+              "DB_URL": f"jdbc:postgresql:///{os.environ['DB_NAME']}?cloudSqlInstance={os.environ['SQL_CONNECTION_NAME']}&socketFactory=com.google.cloud.sql.postgres.SocketFactory",
+              "DB_USERNAME": os.environ["DB_USERNAME"],
+              "DB_PASSWORD": os.environ["DB_PASSWORD"],
+              "JWT_SECRET": os.environ["JWT_SECRET"],
+              "ADMIN_USERNAME": os.environ["ADMIN_USERNAME"],
+              "ADMIN_PASSWORD": os.environ.get("ADMIN_PASSWORD", ""),
+              "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", ""),
+              "CORS_ALLOWED_ORIGINS": ",".join(o for o in [os.environ["CORS"], os.environ.get("EXTRA_CORS_ORIGINS", "")] if o),
+          }
+          with open("/tmp/api-env.yaml", "w") as f:
+              for k, v in env.items():
+                  f.write(f"{k}: {json.dumps(v)}\n")
+          PY
+          }
+
+          FRONT_URLS="$(service_urls "$FRONTEND_SERVICE_NAME")"
+          write_api_env "$FRONT_URLS"
+
+          echo "Deploying $API_SERVICE_NAME to $DEPLOY_ENV ($PROJECT_ID, $REGION)"
+          gcloud run deploy "$API_SERVICE_NAME" \
+            --image "$API_IMAGE:$GITHUB_SHA" \
+            --region "$REGION" \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --add-cloudsql-instances "$SQL_CONNECTION_NAME" \
+            --env-vars-file /tmp/api-env.yaml \
+            --memory 1Gi --cpu 1 \
+            --min-instances 0 --max-instances 2 \
+            --timeout 300 \
+            --allow-unauthenticated \
+            --quiet
+
+          API_URL="$(service_url "$API_SERVICE_NAME")"
+
+          echo "Deploying $FRONTEND_SERVICE_NAME"
+          gcloud run deploy "$FRONTEND_SERVICE_NAME" \
+            --image "$CLIENT_IMAGE:$GITHUB_SHA" \
+            --region "$REGION" \
+            --set-env-vars "API_URL=$API_URL,VERSION=$VERSION" \
+            --memory 256Mi --cpu 1 \
+            --min-instances 0 --max-instances 2 \
+            --allow-unauthenticated \
+            --quiet
+
+          # First deploy: the frontend URL only exists now, so let the API accept it
+          NEW_FRONT_URLS="$(service_urls "$FRONTEND_SERVICE_NAME")"
+          if [ "$NEW_FRONT_URLS" != "$FRONT_URLS" ]; then
+            write_api_env "$NEW_FRONT_URLS"
+            gcloud run services update "$API_SERVICE_NAME" --region "$REGION" \
+              --env-vars-file /tmp/api-env.yaml --quiet
+          fi
+          rm -f /tmp/api-env.yaml
+
+          echo "### Deployed to $DEPLOY_ENV" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App: $(service_url "$FRONTEND_SERVICE_NAME")" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API: $API_URL" >> "$GITHUB_STEP_SUMMARY"

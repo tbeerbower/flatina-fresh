@@ -1,0 +1,17 @@
+# Build output
+target/
+node_modules/
+dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Local GCP setup answers (contain secrets)
+gcp-deployment/deploy-config.env
+
+# Recipe card scans and seed bundles stay out of this public repo
+seed/
+recipe-cards/
+*.env
