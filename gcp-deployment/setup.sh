@@ -13,6 +13,33 @@ GITHUB_REPO_DEFAULT="tbeerbower/flatina-fresh"
 
 command -v gcloud >/dev/null || { echo "gcloud CLI is required: https://cloud.google.com/sdk/docs/install"; exit 1; }
 
+# Google Cloud APIs sometimes answer 429 (rate limit), counted against your gcloud quota project. Every gcloud
+# call below goes through this wrapper, which waits and retries on rate limits and fails on anything else.
+gcloud() {
+  local attempt=1 delay=10 err rc
+  err="$(mktemp)"
+  while :; do
+    if command gcloud "$@" 2>"$err"; then
+      grep -vE '^(Updates are available|To take a quick anonymous survey|  \$ gcloud|please run:)' "$err" >&2 || true
+      rm -f "$err"
+      return 0
+    else
+      rc=$?
+    fi
+    if grep -qE 'RESOURCE_EXHAUSTED|RATE_LIMIT_EXCEEDED|rateLimitExceeded|Quota exceeded|status.: 429' "$err" \
+        && [ "$attempt" -lt 6 ]; then
+      echo "  Google Cloud rate limit hit (gcloud $1 $2); retrying in ${delay}s..." >&2
+      sleep "$delay"
+      delay=$((delay * 2))
+      attempt=$((attempt + 1))
+      continue
+    fi
+    cat "$err" >&2
+    rm -f "$err"
+    return "$rc"
+  done
+}
+
 # shellcheck disable=SC1090
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 
@@ -50,6 +77,7 @@ DB_USERNAME=$DB_USERNAME
 DB_PASSWORD=$DB_PASSWORD
 JWT_SECRET=$JWT_SECRET
 ADMIN_PASSWORD=$ADMIN_PASSWORD
+BILLING_ACCOUNT=${BILLING_ACCOUNT:-}
 CFG
 }
 save_config
@@ -60,11 +88,32 @@ if ! gcloud projects describe "$PROJECT_ID" >/dev/null 2>&1; then
 fi
 gcloud config set project "$PROJECT_ID" >/dev/null
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
-if [ "$(gcloud billing projects describe "$PROJECT_ID" --format='value(billingEnabled)')" != "True" ]; then
-  echo "Billing is not enabled. Link a billing account, then re-run:"
-  echo "  gcloud billing accounts list"
-  echo "  gcloud billing projects link $PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXXXXX"
-  exit 1
+
+billing_enabled() {
+  local out
+  if ! out="$(gcloud billing projects describe "$PROJECT_ID" --format='value(billingEnabled)')"; then
+    echo "Couldn't check billing for $PROJECT_ID (see the error above). Fix that and re-run this script." >&2
+    exit 1
+  fi
+  [ "$out" = "True" ]
+}
+
+if billing_enabled; then
+  echo "Billing is enabled."
+else
+  echo "Billing isn't linked to $PROJECT_ID yet. Your open billing accounts:"
+  ACCOUNTS="$(gcloud billing accounts list --filter='open=true' --format='value(name.basename(),displayName)')"
+  if [ -z "$ACCOUNTS" ]; then
+    echo "  (none found) Create one at https://console.cloud.google.com/billing, then re-run."
+    exit 1
+  fi
+  echo "$ACCOUNTS" | sed 's/^/  /'
+  BILLING_ACCOUNT="${BILLING_ACCOUNT:-$(echo "$ACCOUNTS" | head -n1 | cut -f1)}"
+  ask BILLING_ACCOUNT "Billing account to link" "$BILLING_ACCOUNT"
+  save_config
+  gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT" >/dev/null
+  billing_enabled || { echo "Billing still isn't enabled for $PROJECT_ID."; exit 1; }
+  echo "Billing linked."
 fi
 
 echo "== APIs"
@@ -123,25 +172,22 @@ gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER_SA" --role=roles/i
   --quiet >/dev/null
 
 echo "== GitHub environment '$ENVIRONMENT'"
-declare -A VARS=(
-  [PROJECT_ID]="$PROJECT_ID" [PROJECT_NUMBER]="$PROJECT_NUMBER" [REGION]="$REGION"
-  [SQL_CONNECTION_NAME]="$SQL_CONNECTION_NAME" [DB_NAME]="$DB_NAME" [DB_USERNAME]="$DB_USERNAME"
-  [RUNTIME_SERVICE_ACCOUNT]="$RUNTIME_SA" [ADMIN_USERNAME]="$ADMIN_USERNAME"
-)
-declare -A SECRETS=([DB_PASSWORD]="$DB_PASSWORD" [JWT_SECRET]="$JWT_SECRET" [ADMIN_PASSWORD]="$ADMIN_PASSWORD")
+RUNTIME_SERVICE_ACCOUNT="$RUNTIME_SA"
+VAR_NAMES="PROJECT_ID PROJECT_NUMBER REGION SQL_CONNECTION_NAME DB_NAME DB_USERNAME RUNTIME_SERVICE_ACCOUNT ADMIN_USERNAME"
+SECRET_NAMES="DB_PASSWORD JWT_SECRET ADMIN_PASSWORD"
 
 if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
   gh api -X PUT "repos/$GITHUB_REPO/environments/$ENVIRONMENT" >/dev/null
-  for k in "${!VARS[@]}"; do gh variable set "$k" --repo "$GITHUB_REPO" --env "$ENVIRONMENT" --body "${VARS[$k]}"; done
-  for k in "${!SECRETS[@]}"; do gh secret set "$k" --repo "$GITHUB_REPO" --env "$ENVIRONMENT" --body "${SECRETS[$k]}"; done
+  for k in $VAR_NAMES; do gh variable set "$k" --repo "$GITHUB_REPO" --env "$ENVIRONMENT" --body "${!k}"; done
+  for k in $SECRET_NAMES; do gh secret set "$k" --repo "$GITHUB_REPO" --env "$ENVIRONMENT" --body "${!k}"; done
   echo "GitHub variables and secrets are set."
 else
   echo "gh isn't available; set these on the '$ENVIRONMENT' environment in GitHub (Settings > Environments):"
-  echo "Variables:"; for k in "${!VARS[@]}"; do echo "  $k=${VARS[$k]}"; done
-  echo "Secrets: DB_PASSWORD, JWT_SECRET, ADMIN_PASSWORD (values are in $CONFIG_FILE)"
+  echo "Variables:"; for k in $VAR_NAMES; do echo "  $k=${!k}"; done
+  echo "Secrets: DB_PASSWORD, JWT_SECRET, ADMIN_PASSWORD (values are in gcp-deployment/deploy-config.env)"
 fi
 
 echo
 echo "Done. Card scanning also needs an ANTHROPIC_API_KEY secret on the environment (optional)."
-echo "Your first login is '$ADMIN_USERNAME' with the ADMIN_PASSWORD in $CONFIG_FILE."
+echo "Your first login is '$ADMIN_USERNAME' with the ADMIN_PASSWORD in gcp-deployment/deploy-config.env."
 echo "Push to main (or run the 'Build and Deploy' workflow) to deploy."
