@@ -16,12 +16,19 @@ import java.util.*;
 @RequiredArgsConstructor
 public class ShoppingListService {
     private final MealPlanRepository planEntries;
+    private final GroceryProductRepository products;
 
     public record AmountDto(BigDecimal quantity, String unit) {
     }
 
+    /**
+     * One line of the list. {@code productKey} matches a saved product's ingredient key; {@code product} is that
+     * product, if any, and {@code packages} how many of it cover the amounts (null if it can't be worked out).
+     * {@code staple} items are ones you always keep at home.
+     */
     public record ItemDto(String key, String name, String aisle, List<AmountDto> amounts, List<String> recipes,
-                          boolean pantry) {
+                          boolean pantry, String productKey, GroceryProductController.ProductDto product,
+                          Integer packages, boolean staple) {
     }
 
     public record MealDto(LocalDate date, String recipeTitle, int servings) {
@@ -40,14 +47,19 @@ public class ShoppingListService {
             meals.add(new MealDto(entry.getPlanDate(), entry.getRecipe().getTitle(), entry.getServings()));
             for (RecipeIngredient ing : entry.getRecipe().getIngredients()) {
                 String key = (ing.isPantry() ? "pantry:" : "") + normalizeName(ing.getName());
-                Accumulator acc = byName.computeIfAbsent(key, k -> new Accumulator(k, ing.getName().trim(), ing.isPantry()));
+                Accumulator acc = byName.computeIfAbsent(key,
+                        k -> new Accumulator(k, normalizeName(ing.getName()), ing.getName().trim(), ing.isPantry()));
                 acc.add(scale(ing, entry.getServings()), Units.normalize(ing.getUnit()), entry.getRecipe().getTitle());
             }
         }
 
+        Map<String, GroceryProduct> saved = new HashMap<>();
+        if (!byName.isEmpty()) {
+            products.findAll().forEach(p -> saved.put(p.getIngredientKey(), p));
+        }
         List<ItemDto> items = byName.values().stream()
-                .map(Accumulator::toDto)
-                .sorted(Comparator.comparing(ItemDto::pantry)
+                .map(acc -> acc.toDto(saved.get(acc.productKey)))
+                .sorted(Comparator.comparing((ItemDto i) -> i.pantry() || i.staple())
                         .thenComparing(i -> Aisles.ORDER.indexOf(i.aisle()))
                         .thenComparing(i -> i.name().toLowerCase(Locale.ROOT)))
                 .toList();
@@ -87,14 +99,16 @@ public class ShoppingListService {
 
     private static final class Accumulator {
         private final String key;
+        private final String productKey;
         private final String name;
         private final boolean pantry;
         private BigDecimal teaspoons;
         private final Map<String, BigDecimal> byUnit = new LinkedHashMap<>();
         private final Set<String> recipes = new LinkedHashSet<>();
 
-        Accumulator(String key, String name, boolean pantry) {
+        Accumulator(String key, String productKey, String name, boolean pantry) {
             this.key = key;
+            this.productKey = productKey;
             this.name = name;
             this.pantry = pantry;
         }
@@ -112,14 +126,25 @@ public class ShoppingListService {
             }
         }
 
-        ItemDto toDto() {
+        ItemDto toDto(GroceryProduct product) {
             List<AmountDto> amounts = new ArrayList<>();
             byUnit.forEach((unit, q) -> amounts.add(new AmountDto(Units.round(q), unit.isEmpty() ? null : unit)));
             if (teaspoons != null) {
                 Units.Amount a = Units.fromTeaspoons(teaspoons);
                 amounts.add(new AmountDto(a.quantity(), a.unit()));
             }
-            return new ItemDto(key, name, pantry ? "Pantry" : Aisles.of(name), amounts, List.copyOf(recipes), pantry);
+            boolean staple = product != null && product.isStaple();
+            Integer packages = null;
+            if (product != null) {
+                Map<String, BigDecimal> totals = new LinkedHashMap<>(byUnit);
+                if (teaspoons != null) {
+                    totals.put("tsp", teaspoons);
+                }
+                packages = Units.packages(totals, product.getPackageSize(), product.getPackageUnit());
+            }
+            return new ItemDto(key, name, pantry || staple ? "Pantry" : Aisles.of(name), amounts,
+                    List.copyOf(recipes), pantry, productKey,
+                    product == null ? null : GroceryProductController.ProductDto.of(product), packages, staple);
         }
     }
 }

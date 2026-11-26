@@ -145,6 +145,15 @@ th { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-s
 .shopping-item input { width: auto; margin-top: 0.25rem; }
 .shopping-item.done .name { text-decoration: line-through; color: var(--muted); }
 .shopping-item .name { font-weight: 600; }
+.item-line { display: flex; flex-wrap: wrap; gap: 0.1rem 0.4rem; align-items: baseline; }
+.item-line .link { margin-left: 0.25rem; }
+.order-bar { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.order-text { white-space: pre-wrap; font-size: 0.85rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.75rem; margin: 0.5rem 0 0; max-height: 320px; overflow: auto; }
+.product-editor { margin-top: 0.6rem; padding: 0.75rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.size-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.size-inputs input { min-width: 0; width: 100%; box-sizing: border-box; }
+.check { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.6rem; }
+.check input { width: auto; }
 
 .steps { counter-reset: step; list-style: none; padding: 0; }
 .steps li { margin-bottom: 0.9rem; padding-left: 2.4rem; position: relative; }
