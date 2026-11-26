@@ -284,6 +284,13 @@ class ApiIntegrationTest {
                         .content("{\"username\":\"neighbor\",\"password\":\"neighbor-pass\",\"admin\":false}"))
                 .andExpect(status().isCreated());
         String neighbor = loginAs("neighbor", "neighbor-pass");
+        mvc.perform(post("/api/products").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ingredientName\":\"Family Broth\",\"brand\":\"Ours\",\"staple\":true}"))
+                .andExpect(status().isOk());
+        for (JsonNode p : getJson("/api/products", neighbor)) {
+            assertThat(p.get("ingredientName").asText()).isNotEqualTo("Family Broth");
+        }
         assertThat(getJson("/api/plan?start=2027-01-04&end=2027-01-10", neighbor)).isEmpty();
         assertThat(getJson("/api/family", neighbor).get("members")).hasSize(1);
         mvc.perform(delete("/api/plan/" + entryId).header("Authorization", "Bearer " + neighbor))
