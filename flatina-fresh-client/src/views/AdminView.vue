@@ -94,14 +94,14 @@ onMounted(load)
   <p v-if="message" class="notice">{{ message }}</p>
 
   <h2>Users</h2>
-  <table class="card">
+  <table class="card stack-table">
     <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
     <tbody>
       <tr v-for="u in users" :key="u.id">
-        <td>{{ u.displayName }}</td>
-        <td>{{ u.email || '(not added yet)' }}</td>
-        <td>{{ u.admin ? 'Admin' : 'Member' }}</td>
-        <td class="actions" style="justify-content: flex-end">
+        <td data-label="Name">{{ u.displayName }}</td>
+        <td data-label="Email">{{ u.email || '(not added yet)' }}</td>
+        <td data-label="Role">{{ u.admin ? 'Admin' : 'Member' }}</td>
+        <td class="actions row-actions">
           <button class="small" @click="resetPassword(u)">Reset password</button>
           <template v-if="u.id !== auth.user.id">
             <button class="small" @click="toggleAdmin(u)">{{ u.admin ? 'Make member' : 'Make admin' }}</button>
@@ -114,7 +114,7 @@ onMounted(load)
 
   <h3>Add a user</h3>
   <form class="card" @submit.prevent="addUser">
-    <div class="row">
+    <div class="row wide-fields">
       <div class="field"><label>Name</label><input v-model="form.username" required maxlength="100" autocomplete="off" /></div>
       <div class="field"><label>Email (they sign in with it)</label><input v-model="form.email" type="email" required autocomplete="off" /></div>
       <div class="field"><label>Password (8+ characters)</label><input v-model="form.password" type="password" minlength="8" required autocomplete="new-password" /></div>
@@ -128,7 +128,7 @@ onMounted(load)
     <p class="muted small" style="margin-top: 0">
       Choose a <code>recipes.json</code> bundle and the card images it lists. Recipes whose title already exists are skipped, so importing the same bundle twice is safe.
     </p>
-    <div class="row">
+    <div class="row wide-fields">
       <div class="field"><label>recipes.json</label><input type="file" accept="application/json,.json" @change="importJson = $event.target.files[0]" /></div>
       <div class="field"><label>Card images</label><input type="file" accept="image/jpeg,image/png" multiple @change="importImages = Array.from($event.target.files)" /></div>
     </div>

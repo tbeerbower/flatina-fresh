@@ -38,7 +38,7 @@ async function scan() {
     </div>
   </div>
   <div class="card">
-    <div class="row">
+    <div class="row wide-fields">
       <div class="field">
         <label>Front (title, photo, ingredients)</label>
         <input type="file" accept="image/jpeg,image/png" @change="front = $event.target.files[0]" />

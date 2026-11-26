@@ -88,7 +88,7 @@ async function zoom(imageId) {
     </div>
 
     <div class="card no-print" style="margin-bottom: 1rem">
-      <div class="actions">
+      <div class="actions add-to-plan">
         <strong>Add to plan</strong>
         <select v-model="planWeek" style="width: auto" aria-label="Week">
           <option v-for="w in weekOptions" :key="w" :value="w">{{ weekLabel(w) }}</option>
@@ -115,7 +115,7 @@ async function zoom(imageId) {
     <table>
       <tbody>
         <tr v-for="i in boxItems" :key="i.id">
-          <td style="width: 9rem">{{ amount(i) }}</td>
+          <td class="amount-col">{{ amount(i) }}</td>
           <td>{{ i.name }} <span v-if="i.allergens" class="muted small">(contains {{ i.allergens }})</span></td>
         </tr>
       </tbody>
@@ -125,7 +125,7 @@ async function zoom(imageId) {
       <table>
         <tbody>
           <tr v-for="i in pantryItems" :key="i.id">
-            <td style="width: 9rem">{{ amount(i) }}</td>
+            <td class="amount-col">{{ amount(i) }}</td>
             <td>{{ i.name }}</td>
           </tr>
         </tbody>
