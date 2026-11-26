@@ -19,5 +19,7 @@ public class AppUser {
     private String passwordHash;
     private String displayName;
     private boolean admin;
+    /** Every user belongs to one family, whose meal plan they share. */
+    private Long familyId;
     private LocalDateTime createdAt = LocalDateTime.now();
 }

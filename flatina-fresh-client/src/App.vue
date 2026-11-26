@@ -27,6 +27,7 @@ function signOut() {
       <router-link v-if="auth.user && auth.user.admin" to="/admin">Admin</router-link>
     </nav>
     <div class="account">
+      <router-link to="/family" class="muted">Family</router-link>
       <router-link to="/account" class="muted">{{ auth.user && (auth.user.displayName || auth.user.username) }}</router-link>
       <button class="link" @click="signOut">Sign out</button>
     </div>

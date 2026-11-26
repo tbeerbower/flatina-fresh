@@ -23,6 +23,9 @@ public class AuthController {
     }
 
     public record UserDto(String username, String displayName, boolean admin) {
+        public static UserDto of(AppUser user) {
+            return new UserDto(user.getUsername(), user.getDisplayName(), user.isAdmin());
+        }
     }
 
     public record LoginResponse(String token, UserDto user) {
@@ -33,8 +36,7 @@ public class AuthController {
         AppUser user = users.findByUsernameIgnoreCase(request.username().trim())
                 .filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Wrong username or password"));
-        return new LoginResponse(jwtService.issue(user.getUsername()),
-                new UserDto(user.getUsername(), user.getDisplayName(), user.isAdmin()));
+        return new LoginResponse(jwtService.issue(user.getUsername()), UserDto.of(user));
     }
 
     public record ChangePasswordRequest(@NotBlank String currentPassword,
@@ -57,6 +59,6 @@ public class AuthController {
     public UserDto me(Authentication authentication) {
         AppUser user = users.findByUsernameIgnoreCase(authentication.getName())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
-        return new UserDto(user.getUsername(), user.getDisplayName(), user.isAdmin());
+        return UserDto.of(user);
     }
 }

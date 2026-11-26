@@ -31,8 +31,8 @@ public class ShoppingListService {
     }
 
     @Transactional(readOnly = true)
-    public ShoppingListDto build(LocalDate start, LocalDate end) {
-        List<MealPlanEntry> entries = planEntries.findInRange(start, end);
+    public ShoppingListDto build(Long familyId, LocalDate start, LocalDate end) {
+        List<MealPlanEntry> entries = planEntries.findInRange(familyId, start, end);
         Map<String, Accumulator> byName = new LinkedHashMap<>();
         List<MealDto> meals = new ArrayList<>();
 

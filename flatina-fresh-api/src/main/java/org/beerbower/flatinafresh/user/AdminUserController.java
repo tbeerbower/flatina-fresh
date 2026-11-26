@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.beerbower.flatinafresh.family.FamilyService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +23,7 @@ import java.util.List;
 public class AdminUserController {
     private final AppUserRepository users;
     private final PasswordEncoder passwordEncoder;
+    private final FamilyService familyService;
 
     public record UserDto(Long id, String username, String displayName, boolean admin, LocalDateTime createdAt) {
         static UserDto of(AppUser u) {
@@ -57,7 +59,8 @@ public class AdminUserController {
                 ? username : request.displayName().trim());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setAdmin(request.admin());
-        return UserDto.of(users.save(user));
+        // Added here, a user starts in a family of their own; family members are added with invite links.
+        return UserDto.of(familyService.startFamily(user));
     }
 
     @PutMapping("/{id}")
@@ -89,6 +92,8 @@ public class AdminUserController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You can't remove your own account");
         }
         users.delete(user);
+        users.flush();
+        familyService.deleteIfEmpty(user.getFamilyId());
     }
 
     private AppUser find(Long id) {

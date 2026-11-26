@@ -27,7 +27,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long> {
     @Query("select i.recipe.id, i.name from RecipeIngredient i where i.pantry = false order by i.recipe.id, i.position")
     List<Object[]> findIngredientNames();
 
-    /** [recipeId, times planned, last planned date] for every recipe on the meal plan. */
-    @Query("select e.recipe.id, count(e), max(e.planDate) from MealPlanEntry e group by e.recipe.id")
-    List<Object[]> findPlanStats();
+    /** [recipeId, times planned, last planned date] for every recipe on a family's meal plan. */
+    @Query("select e.recipe.id, count(e), max(e.planDate) from MealPlanEntry e where e.familyId = ?1 group by e.recipe.id")
+    List<Object[]> findPlanStats(Long familyId);
 }

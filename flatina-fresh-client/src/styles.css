@@ -177,3 +177,11 @@ th { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-s
   .mainnav a { white-space: nowrap; }
   .page { padding: 1rem; }
 }
+
+/* Family page */
+.family-list { display: grid; }
+.family-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.family-row:last-child { border-bottom: none; }
+.card.family-list { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.invite-link { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+.invite-link input { flex: 1; min-width: 0; }

@@ -31,6 +31,16 @@ api.interceptors.response.use(
 
 export async function login(username, password) {
   const { data } = await api.post('/api/auth/login', { username, password })
+  setSession(data)
+}
+
+/** Creates an account from a family invite link and signs it in. */
+export async function acceptInvite(token, account) {
+  const { data } = await api.post(`/api/invites/${encodeURIComponent(token)}/accept`, account)
+  setSession(data)
+}
+
+function setSession(data) {
   auth.token = data.token
   auth.user = data.user
   localStorage.setItem(TOKEN_KEY, data.token)

@@ -5,12 +5,14 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import org.beerbower.flatinafresh.family.FamilyService;
 import org.beerbower.flatinafresh.recipe.NotFoundException;
 import org.beerbower.flatinafresh.recipe.Recipe;
 import org.beerbower.flatinafresh.recipe.RecipeRepository;
 import org.beerbower.flatinafresh.recipe.RecipeService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -31,6 +33,7 @@ public class MealPlanController {
     private final MealPlanRepository entries;
     private final RecipeRepository recipes;
     private final RecipeService recipeService;
+    private final FamilyService familyService;
 
     public record EntryDto(Long id, LocalDate date, Long recipeId, String recipeTitle, String recipeSubtitle,
                            Integer totalMinutes, Integer calories, String protein, Long coverImageId,
@@ -42,7 +45,7 @@ public class MealPlanController {
         }
     }
 
-    /** The meals planned in the week starting on {@code start} (a Monday). */
+    /** The family's meals planned in the week starting on {@code start} (a Monday). */
     public record WeekDto(LocalDate start, List<EntryDto> entries) {
     }
 
@@ -52,10 +55,11 @@ public class MealPlanController {
     @GetMapping
     @Transactional(readOnly = true)
     public List<EntryDto> list(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
-                               @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+                               @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end,
+                               Authentication authentication) {
         checkRange(start, end);
         Map<Long, Long> covers = recipeService.coverImageIds();
-        return entries.findInRange(start, end).stream().map(e -> EntryDto.of(e, covers)).toList();
+        return entries.findInRange(familyService.currentFamilyId(authentication), start, end).stream().map(e -> EntryDto.of(e, covers)).toList();
     }
 
     /**
@@ -65,7 +69,7 @@ public class MealPlanController {
     @GetMapping("/weeks")
     @Transactional(readOnly = true)
     public List<WeekDto> weeks(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
-                               @RequestParam(defaultValue = "9") int count) {
+                               @RequestParam(defaultValue = "9") int count, Authentication authentication) {
         if (count < 1 || count > 60) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose between 1 and 60 weeks");
         }
@@ -76,7 +80,7 @@ public class MealPlanController {
         for (int i = 0; i < count; i++) {
             byWeek.put(first.plusWeeks(i), new ArrayList<>());
         }
-        for (MealPlanEntry e : entries.findInRange(first, last)) {
+        for (MealPlanEntry e : entries.findInRange(familyService.currentFamilyId(authentication), first, last)) {
             LocalDate monday = e.getPlanDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
             byWeek.get(monday).add(EntryDto.of(e, covers));
         }
@@ -86,11 +90,13 @@ public class MealPlanController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
-    public EntryDto add(@Valid @RequestBody EntryRequest request) {
+    public EntryDto add(@Valid @RequestBody EntryRequest request, Authentication authentication) {
         if (request.recipeId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "recipeId is required");
         }
+        checkEditable(request.date());
         MealPlanEntry entry = new MealPlanEntry();
+        entry.setFamilyId(familyService.currentFamilyId(authentication));
         entry.setPlanDate(request.date());
         entry.setRecipe(recipes.findById(request.recipeId())
                 .orElseThrow(() -> new NotFoundException("Recipe not found")));
@@ -100,8 +106,11 @@ public class MealPlanController {
 
     @PutMapping("/{id}")
     @Transactional
-    public EntryDto update(@PathVariable Long id, @Valid @RequestBody EntryRequest request) {
-        MealPlanEntry entry = entries.findById(id).orElseThrow(() -> new NotFoundException("Plan entry not found"));
+    public EntryDto update(@PathVariable Long id, @Valid @RequestBody EntryRequest request,
+                           Authentication authentication) {
+        MealPlanEntry entry = find(id, authentication);
+        checkEditable(entry.getPlanDate());
+        checkEditable(request.date());
         entry.setPlanDate(request.date());
         if (request.servings() != null) {
             entry.setServings(request.servings());
@@ -115,8 +124,22 @@ public class MealPlanController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        entries.deleteById(id);
+    @Transactional
+    public void delete(@PathVariable Long id, Authentication authentication) {
+        MealPlanEntry entry = find(id, authentication);
+        checkEditable(entry.getPlanDate());
+        entries.delete(entry);
+    }
+
+    private MealPlanEntry find(Long id, Authentication authentication) {
+        return entries.findByIdAndFamilyId(id, familyService.currentFamilyId(authentication))
+                .orElseThrow(() -> new NotFoundException("Plan entry not found"));
+    }
+
+    private void checkEditable(LocalDate date) {
+        if (!familyService.isEditable(date)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Past weeks can't be changed");
+        }
     }
 
     static void checkRange(LocalDate start, LocalDate end) {

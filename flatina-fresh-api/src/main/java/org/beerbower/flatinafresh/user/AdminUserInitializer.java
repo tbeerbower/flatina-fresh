@@ -2,11 +2,13 @@ package org.beerbower.flatinafresh.user;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.beerbower.flatinafresh.family.FamilyService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /**
@@ -19,6 +21,7 @@ import org.springframework.util.StringUtils;
 public class AdminUserInitializer implements ApplicationRunner {
     private final AppUserRepository users;
     private final PasswordEncoder passwordEncoder;
+    private final FamilyService familyService;
 
     @Value("${app.admin.username}")
     private String username;
@@ -27,6 +30,7 @@ public class AdminUserInitializer implements ApplicationRunner {
     private String password;
 
     @Override
+    @Transactional
     public void run(ApplicationArguments args) {
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
             log.info("ADMIN_PASSWORD not set; skipping admin account setup");
@@ -45,7 +49,9 @@ public class AdminUserInitializer implements ApplicationRunner {
             user.setPasswordHash(passwordEncoder.encode(password));
             changed = true;
         }
-        if (changed) {
+        if (user.getFamilyId() == null) {
+            familyService.startFamily(user);
+        } else if (changed) {
             users.save(user);
         }
     }
