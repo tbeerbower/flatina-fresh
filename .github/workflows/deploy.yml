@@ -98,8 +98,9 @@ jobs:
 
           # All URLs Cloud Run serves a service on (it has two formats), comma-separated
           service_urls() {
-            gcloud run services describe "$1" --region "$REGION" \
-              --format='value(metadata.annotations."run.googleapis.com/urls")' 2>/dev/null \
+            # The service doesn't exist yet on the first deploy, so a failed describe means no URLs
+            { gcloud run services describe "$1" --region "$REGION" \
+              --format='value(metadata.annotations."run.googleapis.com/urls")' 2>/dev/null || true; } \
               | python3 -c 'import json,sys; t=sys.stdin.read().strip(); print(",".join(json.loads(t)) if t else "")'
           }
           service_url() {
