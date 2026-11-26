@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { login, errorMessage } from '../api'
+import pancakePals from '../assets/pancake-pals.webp'
 
 const router = useRouter()
 const route = useRoute()
@@ -27,8 +28,7 @@ async function submit() {
 <template>
   <div class="login card">
     <div style="text-align: center">
-      <img src="/favicon.svg" alt="" width="56" height="56" />
-      <h1>Flatina Fresh</h1>
+      <img :src="pancakePals" alt="Flatina Fresh: Your pancakes will be ready shortly, folks!" class="login-art" width="240" height="331" />
       <p class="muted">Home-cooked HelloFresh, planned for the week.</p>
     </div>
     <form @submit.prevent="submit">

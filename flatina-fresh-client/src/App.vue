@@ -1,6 +1,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { auth, logout } from './api'
+import banner from './assets/banner.webp'
 
 const router = useRouter()
 
@@ -13,8 +14,7 @@ function signOut() {
 <template>
   <header v-if="auth.token" class="topbar">
     <router-link to="/plan" class="brand">
-      <img src="/favicon.svg" alt="" width="28" height="28" />
-      <span>Flatina Fresh</span>
+      <img :src="banner" alt="Flatina Fresh" width="121" height="40" />
     </router-link>
     <nav class="mainnav">
       <router-link to="/plan">This week</router-link>
