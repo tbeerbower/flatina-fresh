@@ -9,7 +9,7 @@ const props = defineProps({ token: { type: String, required: true } })
 const router = useRouter()
 const invite = ref(null)
 const loadError = ref('')
-const form = ref({ displayName: '', username: '', password: '' })
+const form = ref({ username: '', email: '', password: '' })
 const error = ref('')
 const busy = ref(false)
 
@@ -26,7 +26,7 @@ async function submit() {
   error.value = ''
   busy.value = true
   try {
-    await acceptInvite(props.token, form.value)
+    await acceptInvite(props.token, { ...form.value, email: form.value.email.trim(), username: form.value.username.trim() })
     router.replace('/plan')
   } catch (e) {
     error.value = errorMessage(e, 'Could not create your account')
@@ -50,17 +50,17 @@ async function submit() {
         Make an account to get started.
       </p>
       <p v-if="auth.token" class="notice small">
-        You're signed in as {{ auth.user && auth.user.username }}. This link makes a new account.
+        You're signed in as {{ auth.user && (auth.user.displayName || auth.user.username) }}. This link makes a new account.
         <button class="link" @click="logout()">Sign out</button> first if you're on a shared device.
       </p>
       <form @submit.prevent="submit">
         <div class="field">
           <label for="n">Your name</label>
-          <input id="n" v-model="form.displayName" autocomplete="name" />
+          <input id="n" v-model="form.username" autocomplete="name" required maxlength="100" />
         </div>
         <div class="field">
-          <label for="u">Username</label>
-          <input id="u" v-model="form.username" autocomplete="username" autocapitalize="none" required />
+          <label for="e">Email (you'll sign in with it)</label>
+          <input id="e" v-model="form.email" type="email" autocomplete="email" autocapitalize="none" required />
         </div>
         <div class="field">
           <label for="p">Password (8+ characters)</label>

@@ -6,7 +6,15 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AppUserRepository extends JpaRepository<AppUser, Long> {
-    Optional<AppUser> findByUsernameIgnoreCase(String username);
+    /** Emails are stored lowercased: pass one through {@link AppUser#normalizeEmail}. */
+    Optional<AppUser> findByEmail(String email);
+
+    boolean existsByEmail(String email);
+
+    boolean existsByAdminTrue();
+
+    /** Accounts made before emails, which still sign in with their (then unique) username until they add one. */
+    List<AppUser> findByUsernameIgnoreCaseAndEmailIsNull(String username);
 
     List<AppUser> findByFamilyIdOrderByCreatedAt(Long familyId);
 

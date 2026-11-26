@@ -1,6 +1,7 @@
 package org.beerbower.flatinafresh.family;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,8 @@ public class InviteController {
     public record InviteInfo(String familyName, String invitedBy, LocalDateTime expiresAt) {
     }
 
-    public record AcceptRequest(@NotBlank @Size(max = 100) String username, @Size(max = 200) String displayName,
+    /** {@code username} is the name the app calls them; they sign in with {@code email}. */
+    public record AcceptRequest(@NotBlank @Email @Size(max = 254) String email, @NotBlank @Size(max = 100) String username,
                                 @NotBlank @Size(min = 8) String password) {
     }
 
@@ -54,20 +56,15 @@ public class InviteController {
     @Transactional
     public AuthController.LoginResponse accept(@PathVariable String token, @Valid @RequestBody AcceptRequest request) {
         FamilyInvite invite = open(token);
-        String username = request.username().trim();
-        if (users.findByUsernameIgnoreCase(username).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "That username is taken");
-        }
         AppUser user = new AppUser();
-        user.setUsername(username);
-        user.setDisplayName(request.displayName() == null || request.displayName().isBlank()
-                ? username : request.displayName().trim());
+        AuthController.setEmail(users, user, request.email());
+        user.rename(request.username().trim());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setFamilyId(invite.getFamilyId());
         user = users.save(user);
         invite.setUsedAt(LocalDateTime.now(familyService.clock()));
         invite.setUsedBy(user.getId());
-        return new AuthController.LoginResponse(jwtService.issue(user.getUsername()), AuthController.UserDto.of(user));
+        return AuthController.LoginResponse.of(jwtService, user);
     }
 
     private FamilyInvite open(String token) {

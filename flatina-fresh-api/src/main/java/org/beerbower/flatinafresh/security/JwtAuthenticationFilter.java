@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Authenticates Bearer tokens. The user is looked up on each request, so removed users lose access at once. */
+/** Authenticates Bearer tokens; the principal's name is the user id. The user is looked up on each request, so removed users lose access at once. */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -30,7 +30,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith("Bearer ")) {
             jwtService.verify(header.substring(7))
-                    .flatMap(users::findByUsernameIgnoreCase)
+                    .flatMap(users::findById)
                     .ifPresent(user -> {
                         List<SimpleGrantedAuthority> roles = new ArrayList<>();
                         roles.add(new SimpleGrantedAuthority("ROLE_USER"));
@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             roles.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
                         }
                         SecurityContextHolder.getContext().setAuthentication(
-                                new UsernamePasswordAuthenticationToken(user.getUsername(), null, roles));
+                                new UsernamePasswordAuthenticationToken(String.valueOf(user.getId()), null, roles));
                     });
         }
         chain.doFilter(request, response);

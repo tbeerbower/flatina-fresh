@@ -11,9 +11,20 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+import java.util.Optional;
+
 /**
- * Creates the first admin account from ADMIN_USERNAME / ADMIN_PASSWORD if it doesn't exist yet, and makes sure
- * that account stays an admin. After that, the password is changed in the app, not here.
+ * Sets up the first admin from deploy settings, and keeps that account an admin:
+ * <ul>
+ * <li>The account is the one with ADMIN_EMAIL, or else the pre-email account named ADMIN_USERNAME.</li>
+ * <li>If that pre-email account is found and ADMIN_EMAIL is set, the email is added to it (and the name changed to
+ * ADMIN_NAME, if set), so it then signs in with the email.</li>
+ * <li>If there is no such account and no admin at all yet, it is created from ADMIN_EMAIL, ADMIN_NAME (or
+ * ADMIN_USERNAME) and ADMIN_PASSWORD. (With an admin already there, the admin may have changed their email in the
+ * app, so no second admin is made.)</li>
+ * </ul>
+ * After that, the name, email and password are changed in the app, not here.
  */
 @Slf4j
 @Component
@@ -23,36 +34,63 @@ public class AdminUserInitializer implements ApplicationRunner {
     private final PasswordEncoder passwordEncoder;
     private final FamilyService familyService;
 
-    @Value("${app.admin.username}")
+    @Value("${app.admin.username:}")
     private String username;
 
-    @Value("${app.admin.password}")
+    @Value("${app.admin.email:}")
+    private String email;
+
+    @Value("${app.admin.name:}")
+    private String name;
+
+    @Value("${app.admin.password:}")
     private String password;
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
-            log.info("ADMIN_PASSWORD not set; skipping admin account setup");
-            return;
-        }
-        AppUser user = users.findByUsernameIgnoreCase(username).orElseGet(() -> {
-            AppUser u = new AppUser();
-            u.setUsername(username);
-            u.setDisplayName(username);
-            log.info("Creating account {}", username);
-            return u;
-        });
-        boolean changed = !user.isAdmin();
-        user.setAdmin(true);
-        if (user.getPasswordHash() == null) {
+        String adminEmail = StringUtils.hasText(email) ? AppUser.normalizeEmail(email) : null;
+        Optional<AppUser> existing = Optional.ofNullable(adminEmail).flatMap(users::findByEmail)
+                .or(this::legacyAccount);
+        AppUser user;
+        if (existing.isPresent()) {
+            user = existing.get();
+            if (user.getEmail() == null && adminEmail != null) {
+                user.setEmail(adminEmail);
+                if (StringUtils.hasText(name)) {
+                    familyService.rename(user, name.trim());
+                }
+                log.info("Added ADMIN_EMAIL to the admin account; it now signs in with that email");
+            }
+        } else {
+            if (users.existsByAdminTrue()) {
+                log.info("No account has ADMIN_EMAIL, but an admin already exists; leaving accounts as they are");
+                return;
+            }
+            if (adminEmail == null || !StringUtils.hasText(password)) {
+                log.info("ADMIN_EMAIL or ADMIN_PASSWORD not set; skipping admin account setup");
+                return;
+            }
+            user = new AppUser();
+            user.setEmail(adminEmail);
+            user.rename(StringUtils.hasText(name) ? name.trim()
+                    : StringUtils.hasText(username) ? username.trim() : "Admin");
             user.setPasswordHash(passwordEncoder.encode(password));
-            changed = true;
+            log.info("Creating the admin account for ADMIN_EMAIL");
         }
+        user.setAdmin(true);
         if (user.getFamilyId() == null) {
             familyService.startFamily(user);
-        } else if (changed) {
+        } else {
             users.save(user);
         }
+    }
+
+    private Optional<AppUser> legacyAccount() {
+        if (!StringUtils.hasText(username)) {
+            return Optional.empty();
+        }
+        List<AppUser> found = users.findByUsernameIgnoreCaseAndEmailIsNull(username.trim());
+        return found.size() == 1 ? Optional.of(found.get(0)) : Optional.empty();
     }
 }

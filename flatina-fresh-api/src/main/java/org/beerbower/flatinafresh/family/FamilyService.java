@@ -23,8 +23,17 @@ public class FamilyService {
 
     /** The signed-in user. */
     public AppUser currentUser(Authentication authentication) {
-        return users.findByUsernameIgnoreCase(authentication.getName())
+        return users.findById(userId(authentication))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+    }
+
+    /** The signed-in user's id (the authentication's name, set by the JWT filter). */
+    public static Long userId(Authentication authentication) {
+        try {
+            return Long.parseLong(authentication.getName());
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
     }
 
     /** The signed-in user's family, whose meal plan they see and edit. */
@@ -42,6 +51,18 @@ public class FamilyService {
         user = users.save(user);
         family.setCreatedBy(user.getId());
         return user;
+    }
+
+    /** Renames the user; a family still called by their old default name ("Old's family") follows the new name. */
+    @Transactional
+    public void rename(AppUser user, String name) {
+        String oldDefault = defaultName(user);
+        user.rename(name);
+        if (user.getFamilyId() != null) {
+            families.findById(user.getFamilyId())
+                    .filter(f -> f.getName().equals(oldDefault))
+                    .ifPresent(f -> f.setName(defaultName(user)));
+        }
     }
 
     /** Takes the user out of their family into a new one of their own; an emptied family is deleted. */
@@ -79,8 +100,6 @@ public class FamilyService {
     }
 
     public static String defaultName(AppUser user) {
-        String name = user.getDisplayName() == null || user.getDisplayName().isBlank()
-                ? user.getUsername() : user.getDisplayName().trim();
-        return name + "'s family";
+        return user.name().trim() + "'s family";
     }
 }

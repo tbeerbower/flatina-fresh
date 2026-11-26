@@ -26,6 +26,10 @@ const router = createRouter({ history: createWebHistory(), routes })
 
 router.beforeEach((to) => {
   if (!to.meta.public && !auth.token) return { path: '/login', query: { next: to.fullPath } }
+  // Accounts made before emails add one before going anywhere else
+  if (!to.meta.public && auth.user && !auth.user.email && to.path !== '/account') {
+    return { path: '/account', query: { next: to.fullPath } }
+  }
   if (to.meta.admin && !(auth.user && auth.user.admin)) return '/plan'
   return true
 })

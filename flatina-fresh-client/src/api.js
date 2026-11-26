@@ -11,6 +11,14 @@ export const auth = reactive({
   user: JSON.parse(localStorage.getItem(USER_KEY) || 'null'),
 })
 
+// Sessions from before sign-in by email (no user id) no longer work on the server: start over at the login page.
+if (auth.token && !(auth.user && auth.user.id)) {
+  auth.token = null
+  auth.user = null
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(USER_KEY)
+}
+
 export const api = axios.create({ baseURL })
 
 api.interceptors.request.use((config) => {
@@ -29,9 +37,18 @@ api.interceptors.response.use(
   },
 )
 
-export async function login(username, password) {
-  const { data } = await api.post('/api/auth/login', { username, password })
+/** Signs in with an email (or, for an account made before emails, its username) and password. */
+export async function login(email, password) {
+  const { data } = await api.post('/api/auth/login', { email: email.trim(), password })
   setSession(data)
+}
+
+/** Changes the signed-in user's name and/or email. */
+export async function updateProfile(changes) {
+  const { data } = await api.put('/api/auth/me', changes)
+  auth.user = data
+  localStorage.setItem(USER_KEY, JSON.stringify(data))
+  return data
 }
 
 /** Creates an account from a family invite link and signs it in. */

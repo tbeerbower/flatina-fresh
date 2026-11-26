@@ -123,7 +123,7 @@ onMounted(load)
       <div v-for="m in family.members" :key="m.id" class="family-row">
         <div>
           <strong>{{ m.displayName }}</strong><span v-if="m.you" class="pill" style="margin-left: 0.4rem">You</span>
-          <div class="muted small">{{ m.username }}</div>
+          <div v-if="m.email" class="muted small">{{ m.email }}</div>
         </div>
         <button v-if="!m.you" class="small danger" @click="removeMember(m)">Remove</button>
       </div>
@@ -132,7 +132,7 @@ onMounted(load)
     <h2>Invite someone</h2>
     <div class="card">
       <p class="muted small" style="margin-top: 0">
-        Make a link and send it to them however you like. Opening it lets them pick a username and password, and their
+        Make a link and send it to them however you like. Opening it lets them enter their name, email and a password, and their
         account joins this family. Each link works once and expires after 7 days.
       </p>
       <button class="primary" :disabled="busy" @click="invite">{{ busy ? 'Making link…' : 'Make an invite link' }}</button>

@@ -2,8 +2,12 @@ package org.beerbower.flatinafresh;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.beerbower.flatinafresh.family.FamilyService;
 import org.beerbower.flatinafresh.scan.RecipeCardReader;
 import org.beerbower.flatinafresh.scan.ScannedRecipe;
+import org.beerbower.flatinafresh.user.AdminUserInitializer;
+import org.beerbower.flatinafresh.user.AppUser;
+import org.beerbower.flatinafresh.user.AppUserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,8 +15,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import javax.imageio.ImageIO;
@@ -37,17 +43,23 @@ class ApiIntegrationTest {
     ObjectMapper json;
     @MockitoBean
     RecipeCardReader cardReader;
+    @Autowired
+    AppUserRepository users;
+    @Autowired
+    PasswordEncoder passwordEncoder;
+    @Autowired
+    FamilyService familyService;
 
     String token;
 
     @BeforeEach
     void login() throws Exception {
-        token = loginAs("admin", "test-password");
+        token = loginAs("admin@example.com", "test-password");
     }
 
-    String loginAs(String user, String password) throws Exception {
+    String loginAs(String email, String password) throws Exception {
         String body = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"" + user + "\",\"password\":\"" + password + "\"}"))
+                        .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         return json.readTree(body).get("token").asText();
     }
@@ -56,7 +68,10 @@ class ApiIntegrationTest {
     void rejectsUnauthenticatedAndBadPasswords() throws Exception {
         mvc.perform(get("/api/recipes")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"admin\",\"password\":\"nope\"}")).andExpect(status().isUnauthorized());
+                .content("{\"email\":\"admin@example.com\",\"password\":\"nope\"}")).andExpect(status().isUnauthorized());
+        // The admin account has an email, so its username no longer signs in
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"admin\",\"password\":\"test-password\"}")).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -220,9 +235,9 @@ class ApiIntegrationTest {
     void adminCanAddUsersWhoCannotAdminister() throws Exception {
         mvc.perform(post("/api/admin/users").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"flatina\",\"password\":\"secret-pass\",\"admin\":false}"))
+                        .content("{\"email\":\"flatina@example.com\",\"username\":\"flatina\",\"password\":\"secret-pass\",\"admin\":false}"))
                 .andExpect(status().isCreated());
-        String userToken = loginAs("flatina", "secret-pass");
+        String userToken = loginAs("FLATINA@example.com ", "secret-pass");
         mvc.perform(get("/api/recipes").header("Authorization", "Bearer " + userToken)).andExpect(status().isOk());
         mvc.perform(get("/api/admin/users").header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isForbidden());
@@ -253,12 +268,18 @@ class ApiIntegrationTest {
         JsonNode info = json.readTree(mvc.perform(get(link)).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString());
         assertThat(info.get("familyName").asText()).isEqualTo("admin's family");
+        mvc.perform(post(link + "/accept").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"spouse\",\"password\":\"spouse-pass\"}"))
+                .andExpect(status().isBadRequest()); // email is required
+        mvc.perform(post(link + "/accept").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ADMIN@example.com\",\"username\":\"spouse\",\"password\":\"spouse-pass\"}"))
+                .andExpect(status().isConflict()); // email taken (in any case); the link is still good
         String accepted = mvc.perform(post(link + "/accept").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"spouse\",\"displayName\":\"Spouse\",\"password\":\"spouse-pass\"}"))
+                        .content("{\"email\":\"spouse@example.com\",\"username\":\"spouse\",\"password\":\"spouse-pass\"}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         String spouse = json.readTree(accepted).get("token").asText();
         mvc.perform(post(link + "/accept").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"spouse2\",\"password\":\"spouse-pass\"}"))
+                        .content("{\"email\":\"spouse2@example.com\",\"username\":\"spouse2\",\"password\":\"spouse-pass\"}"))
                 .andExpect(status().isNotFound());
         mvc.perform(get(link)).andExpect(status().isNotFound());
 
@@ -281,9 +302,9 @@ class ApiIntegrationTest {
         // Someone in another family sees none of it
         mvc.perform(post("/api/admin/users").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"neighbor\",\"password\":\"neighbor-pass\",\"admin\":false}"))
-                .andExpect(status().isCreated());
-        String neighbor = loginAs("neighbor", "neighbor-pass");
+                        .content("{\"email\":\"neighbor@example.com\",\"username\":\"spouse\",\"password\":\"neighbor-pass\",\"admin\":false}"))
+                .andExpect(status().isCreated()); // names needn't be unique
+        String neighbor = loginAs("neighbor@example.com", "neighbor-pass");
         mvc.perform(post("/api/products").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"ingredientName\":\"Family Broth\",\"brand\":\"Ours\",\"staple\":true}"))
@@ -307,6 +328,63 @@ class ApiIntegrationTest {
                 .andExpect(status().isNoContent());
         assertThat(getJson("/api/plan?start=2027-01-04&end=2027-01-10", spouse)).isEmpty();
         assertThat(getJson("/api/plan?start=2027-01-04&end=2027-01-10", token)).hasSize(1);
+    }
+
+    @Test
+    void accountsFromBeforeEmailsSignInWithUsernameUntilTheyAddOne() throws Exception {
+        AppUser legacy = new AppUser();
+        legacy.setUsername("oldtimer");
+        legacy.setDisplayName("Old Timer");
+        legacy.setPasswordHash(passwordEncoder.encode("oldtimer-pass"));
+        familyService.startFamily(legacy);
+
+        String body = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"OldTimer\",\"password\":\"oldtimer-pass\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        JsonNode login = json.readTree(body);
+        assertThat(login.get("user").get("email").isNull()).isTrue(); // the app asks for one
+        String legacyToken = login.get("token").asText();
+
+        mvc.perform(put("/api/auth/me").header("Authorization", "Bearer " + legacyToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"email\":\"not-an-email\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/auth/me").header("Authorization", "Bearer " + legacyToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"email\":\"admin@EXAMPLE.com\"}"))
+                .andExpect(status().isConflict());
+        JsonNode me = json.readTree(mvc.perform(put("/api/auth/me").header("Authorization", "Bearer " + legacyToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"Old.Timer@Example.com\",\"name\":\"Oldie\"}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertThat(me.get("email").asText()).isEqualTo("old.timer@example.com");
+        assertThat(me.get("displayName").asText()).isEqualTo("Oldie");
+        assertThat(getJson("/api/family", legacyToken).get("name").asText()).isEqualTo("Oldie's family");
+
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"oldtimer\",\"password\":\"oldtimer-pass\"}"))
+                .andExpect(status().isUnauthorized());
+        String fresh = loginAs("old.timer@example.com", "oldtimer-pass");
+        assertThat(getJson("/api/auth/me", fresh).get("displayName").asText()).isEqualTo("Oldie");
+    }
+
+    @Test
+    void adminEmailSettingIsAddedToTheAdminsAccountFromBeforeEmails() throws Exception {
+        AppUser legacy = new AppUser();
+        legacy.setUsername("boss");
+        legacy.setPasswordHash(passwordEncoder.encode("boss-pass"));
+        familyService.startFamily(legacy);
+
+        AdminUserInitializer init = new AdminUserInitializer(users, passwordEncoder, familyService);
+        ReflectionTestUtils.setField(init, "username", "boss");
+        ReflectionTestUtils.setField(init, "email", "Boss@Example.com");
+        ReflectionTestUtils.setField(init, "name", "The Boss");
+        ReflectionTestUtils.setField(init, "password", "ignored-pass");
+        init.run(null);
+        init.run(null); // a second start changes nothing
+
+        JsonNode me = getJson("/api/auth/me", loginAs("boss@example.com", "boss-pass"));
+        assertThat(me.get("displayName").asText()).isEqualTo("The Boss");
+        assertThat(me.get("admin").asBoolean()).isTrue();
+        assertThat(users.findAll().stream().filter(u -> "boss@example.com".equals(u.getEmail())).count()).isEqualTo(1);
     }
 
     private JsonNode getJson(String url, String bearer) throws Exception {
