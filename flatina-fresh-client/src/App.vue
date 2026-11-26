@@ -14,7 +14,7 @@ function signOut() {
 <template>
   <header v-if="auth.token" class="topbar">
     <router-link to="/plan" class="brand">
-      <img :src="banner" alt="Flatina Fresh" width="121" height="40" />
+      <img :src="banner" alt="Flatina Fresh" width="114" height="44" />
     </router-link>
     <nav class="mainnav">
       <router-link to="/plan">This week</router-link>

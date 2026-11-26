@@ -28,7 +28,7 @@ async function submit() {
 <template>
   <div class="login card">
     <div style="text-align: center">
-      <img :src="pancakePals" alt="Flatina Fresh: Your pancakes will be ready shortly, folks!" class="login-art" width="240" height="331" />
+      <img :src="pancakePals" alt="Flatina Fresh: Your pancakes will be ready shortly, folks!" class="login-art" width="240" height="358" />
       <p class="muted">Home-cooked HelloFresh, planned for the week.</p>
     </div>
     <form @submit.prevent="submit">
