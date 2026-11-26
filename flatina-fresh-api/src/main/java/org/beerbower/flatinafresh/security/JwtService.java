@@ -25,20 +25,22 @@ public class JwtService {
         this.expirationMs = expirationMs;
     }
 
-    public String issue(String username) {
+    /** The token's subject is the user id: names aren't unique and emails can change. */
+    public String issue(Long userId) {
         Date now = new Date();
         return Jwts.builder()
-                .subject(username)
+                .subject(String.valueOf(userId))
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expirationMs))
                 .signWith(key)
                 .compact();
     }
 
-    public Optional<String> verify(String token) {
+    /** The user id in a valid token. Tokens from before ids (whose subject was a username) are no longer valid. */
+    public Optional<Long> verify(String token) {
         try {
             Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
-            return Optional.ofNullable(claims.getSubject());
+            return Optional.of(Long.parseLong(claims.getSubject()));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();
         }

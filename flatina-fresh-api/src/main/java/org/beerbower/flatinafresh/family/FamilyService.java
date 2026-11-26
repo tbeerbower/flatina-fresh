@@ -23,8 +23,17 @@ public class FamilyService {
 
     /** The signed-in user. */
     public AppUser currentUser(Authentication authentication) {
-        return users.findByUsernameIgnoreCase(authentication.getName())
+        return users.findById(userId(authentication))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+    }
+
+    /** The signed-in user's id (the authentication's name, set by the JWT filter). */
+    public static Long userId(Authentication authentication) {
+        try {
+            return Long.parseLong(authentication.getName());
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
     }
 
     /** The signed-in user's family, whose meal plan they see and edit. */
@@ -79,8 +88,6 @@ public class FamilyService {
     }
 
     public static String defaultName(AppUser user) {
-        String name = user.getDisplayName() == null || user.getDisplayName().isBlank()
-                ? user.getUsername() : user.getDisplayName().trim();
-        return name + "'s family";
+        return user.name().trim() + "'s family";
     }
 }

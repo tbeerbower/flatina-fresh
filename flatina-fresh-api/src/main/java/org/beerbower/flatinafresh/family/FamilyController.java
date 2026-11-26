@@ -33,7 +33,7 @@ public class FamilyController {
     private final FamilyInviteRepository invites;
     private final AppUserRepository users;
 
-    public record MemberDto(Long id, String username, String displayName, boolean you) {
+    public record MemberDto(Long id, String username, String displayName, String email, boolean you) {
     }
 
     public record InviteDto(Long id, String token, String createdBy, LocalDateTime createdAt,
@@ -114,7 +114,7 @@ public class FamilyController {
                         i.getCreatedAt(), i.getExpiresAt()))
                 .toList();
         return new FamilyDto(family.getId(), family.getName(),
-                members.stream().map(u -> new MemberDto(u.getId(), u.getUsername(), name(u),
+                members.stream().map(u -> new MemberDto(u.getId(), u.getUsername(), name(u), u.getEmail(),
                         u.getId().equals(me.getId()))).toList(),
                 open);
     }
@@ -124,7 +124,7 @@ public class FamilyController {
     }
 
     static String name(AppUser u) {
-        return u.getDisplayName() == null || u.getDisplayName().isBlank() ? u.getUsername() : u.getDisplayName();
+        return u.name();
     }
 
     static String newToken() {
