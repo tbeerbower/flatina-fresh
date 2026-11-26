@@ -5,8 +5,10 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.beerbower.flatinafresh.family.FamilyService;
 import org.beerbower.flatinafresh.recipe.NotFoundException;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -15,12 +17,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** The household's saved products ("my products"), shared by everyone who shops from the plan. */
+/** The family's saved products ("my products"), shared by everyone in the family. */
 @RestController
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
 public class GroceryProductController {
     private final GroceryProductRepository products;
+    private final FamilyService familyService;
 
     public record ProductDto(Long id, String ingredientKey, String ingredientName, String brand, String productName,
                              BigDecimal packageSize, String packageUnit, String packageLabel, String storeItem,
@@ -41,19 +44,21 @@ public class GroceryProductController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    public List<ProductDto> list() {
-        return products.findAllByOrderByIngredientNameAsc().stream().map(ProductDto::of).toList();
+    public List<ProductDto> list(Authentication authentication) {
+        return products.findByFamilyIdOrderByIngredientNameAsc(familyService.currentFamilyId(authentication)).stream().map(ProductDto::of).toList();
     }
 
     /** Saves the product for an ingredient, replacing the one already saved for it. */
     @PostMapping
     @Transactional
-    public ProductDto save(@Valid @RequestBody ProductRequest request) {
+    public ProductDto save(@Valid @RequestBody ProductRequest request, Authentication authentication) {
+        Long familyId = familyService.currentFamilyId(authentication);
         String key = ShoppingListService.normalizeName(request.ingredientName());
         if (key.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ingredientName is required");
         }
-        GroceryProduct p = products.findByIngredientKey(key).orElseGet(GroceryProduct::new);
+        GroceryProduct p = products.findByFamilyIdAndIngredientKey(familyId, key).orElseGet(GroceryProduct::new);
+        p.setFamilyId(familyId);
         p.setIngredientKey(key);
         apply(p, request);
         return ProductDto.of(products.save(p));
@@ -61,11 +66,13 @@ public class GroceryProductController {
 
     @PutMapping("/{id}")
     @Transactional
-    public ProductDto update(@PathVariable Long id, @Valid @RequestBody ProductRequest request) {
-        GroceryProduct p = products.findById(id).orElseThrow(() -> new NotFoundException("Product not found"));
+    public ProductDto update(@PathVariable Long id, @Valid @RequestBody ProductRequest request,
+                             Authentication authentication) {
+        Long familyId = familyService.currentFamilyId(authentication);
+        GroceryProduct p = products.findByIdAndFamilyId(id, familyId).orElseThrow(() -> new NotFoundException("Product not found"));
         String key = ShoppingListService.normalizeName(request.ingredientName());
         if (!key.equals(p.getIngredientKey())) {
-            products.findByIngredientKey(key).ifPresent(other -> {
+            products.findByFamilyIdAndIngredientKey(familyId, key).ifPresent(other -> {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "There's already a product saved for " + other.getIngredientName());
             });
@@ -77,8 +84,9 @@ public class GroceryProductController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        products.deleteById(id);
+    @Transactional
+    public void delete(@PathVariable Long id, Authentication authentication) {
+        products.findByIdAndFamilyId(id, familyService.currentFamilyId(authentication)).ifPresent(products::delete);
     }
 
     private static void apply(GroceryProduct p, ProductRequest r) {
