@@ -108,10 +108,12 @@ onMounted(load)
       <p class="muted">{{ formatRange(start, end) }}<span v-if="list"> · {{ toBuy.length }} item{{ toBuy.length === 1 ? '' : 's' }} to get</span></p>
     </div>
     <div class="actions no-print">
-      <button @click="start = addDays(start, -7)">← Previous</button>
-      <button @click="start = weekStart()">This week</button>
-      <button @click="start = addDays(start, 7)">Next →</button>
-      <label style="display: flex; gap: 0.3rem; align-items: center; margin: 0"><input v-model="hideChecked" type="checkbox" style="width: auto" /> Hide checked</label>
+      <div class="week-nav">
+        <button aria-label="Previous week" @click="start = addDays(start, -7)">← <span class="hide-phone">Previous</span></button>
+        <button @click="start = weekStart()">This week</button>
+        <button aria-label="Next week" @click="start = addDays(start, 7)"><span class="hide-phone">Next</span> →</button>
+      </div>
+      <label class="inline-check"><input v-model="hideChecked" type="checkbox" /> Hide checked</label>
       <button @click="print">Print</button>
       <router-link to="/products" class="button">My products</router-link>
     </div>

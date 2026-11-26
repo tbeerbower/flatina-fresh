@@ -16,6 +16,8 @@ const route = useRoute()
 const router = useRouter()
 const filters = ref(filtersFromQuery(route.query))
 const showMore = ref(Boolean(filters.value.withIng || filters.value.withoutIng))
+// Phones fold the chips and dropdowns away behind a Filters button
+const filtersOpen = ref(false)
 
 const proteins = computed(() => {
   const present = new Set(props.recipes.map((r) => r.protein))
@@ -49,47 +51,59 @@ defineExpose({ results })
 </script>
 
 <template>
-  <div class="filters card">
-    <div class="filter-row">
-      <input v-model="filters.q" type="search" placeholder="Search by name, keyword or ingredient…" class="grow" />
+  <div class="filters card" :class="{ open: filtersOpen }">
+    <div class="filter-row search-row">
+      <input v-model="filters.q" type="search" placeholder="Search by name, keyword or ingredient…" class="grow" aria-label="Search recipes" />
       <select v-model="filters.sort" class="auto" aria-label="Sort by">
         <option v-for="s in SORTS" :key="s.value" :value="s.value">{{ s.label }}</option>
       </select>
-    </div>
-    <div v-if="proteins.length" class="chips" role="group" aria-label="Protein">
       <button
-        v-for="p in proteins" :key="p.value" type="button" class="chip"
-        :class="{ on: filters.proteins.includes(p.value) }" @click="toggle(filters.proteins, p.value)"
+        type="button" class="filters-toggle" :class="{ on: activeCount }" :aria-expanded="filtersOpen"
+        @click="filtersOpen = !filtersOpen"
       >
-        {{ p.icon }} {{ p.label }}
+        Filters<span v-if="activeCount"> ({{ activeCount }})</span>
       </button>
     </div>
-    <div v-if="tags.length" class="chips" role="group" aria-label="Style">
-      <button
-        v-for="t in tags" :key="t" type="button" class="chip tag"
-        :class="{ on: filters.tags.includes(t) }" @click="toggle(filters.tags, t)"
-      >
-        {{ t }}
-      </button>
+    <div class="filter-body">
+      <div v-if="proteins.length" class="chips" role="group" aria-label="Protein">
+        <button
+          v-for="p in proteins" :key="p.value" type="button" class="chip"
+          :class="{ on: filters.proteins.includes(p.value) }" @click="toggle(filters.proteins, p.value)"
+        >
+          {{ p.icon }} {{ p.label }}
+        </button>
+      </div>
+      <div v-if="tags.length" class="chips" role="group" aria-label="Style">
+        <button
+          v-for="t in tags" :key="t" type="button" class="chip tag"
+          :class="{ on: filters.tags.includes(t) }" @click="toggle(filters.tags, t)"
+        >
+          {{ t }}
+        </button>
+      </div>
+      <div class="filter-row">
+        <select v-model="filters.maxCal" class="auto" aria-label="Calories">
+          <option v-for="o in CALORIE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <select v-model="filters.maxTime" class="auto" aria-label="Cooking time">
+          <option v-for="o in TIME_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <button type="button" class="link small" @click="showMore = !showMore">{{ showMore ? 'Fewer filters' : 'Ingredients…' }}</button>
+        <span class="spacer hide-phone"></span>
+        <span class="muted small hide-phone">{{ results.length }} of {{ recipes.length }}</span>
+        <button v-if="activeCount" type="button" class="small hide-phone" @click="clear">Clear filters</button>
+      </div>
+      <div v-if="showMore" class="filter-row">
+        <input v-model="filters.withIng" list="ingredient-names" placeholder="Has ingredient (e.g. mushrooms)" class="grow" />
+        <input v-model="filters.withoutIng" list="ingredient-names" placeholder="Without ingredient" class="grow" />
+        <datalist id="ingredient-names">
+          <option v-for="i in ingredients" :key="i" :value="i" />
+        </datalist>
+      </div>
     </div>
-    <div class="filter-row">
-      <select v-model="filters.maxCal" class="auto" aria-label="Calories">
-        <option v-for="o in CALORIE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-      </select>
-      <select v-model="filters.maxTime" class="auto" aria-label="Cooking time">
-        <option v-for="o in TIME_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-      </select>
-      <button type="button" class="link small" @click="showMore = !showMore">{{ showMore ? 'Fewer filters' : 'Ingredients…' }}</button>
-      <span class="spacer"></span>
+    <div class="filter-row count-row phone-only">
       <span class="muted small">{{ results.length }} of {{ recipes.length }}</span>
       <button v-if="activeCount" type="button" class="small" @click="clear">Clear filters</button>
-    </div>
-    <div v-if="showMore" class="filter-row">
-      <input v-model="filters.withIng" list="ingredient-names" placeholder="Has ingredient (e.g. mushrooms)" class="grow" />
-      <input v-model="filters.withoutIng" list="ingredient-names" placeholder="Without ingredient" class="grow" />
-      <datalist id="ingredient-names">
-        <option v-for="i in ingredients" :key="i" :value="i" />
-      </datalist>
     </div>
   </div>
 

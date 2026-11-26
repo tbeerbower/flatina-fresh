@@ -114,11 +114,11 @@ async function save() {
   <p class="muted small">Amounts for the 2-person and 4-person columns on the card. Tick "pantry" for "Bust out" items you keep at home.</p>
   <div class="edit-list">
     <div v-for="(i, idx) in recipe.ingredients" :key="idx" class="edit-row ing-row">
-      <input v-model="i.name" placeholder="Ingredient" />
-      <input v-model.number="i.quantity2" type="number" step="any" min="0" placeholder="2p" />
-      <input v-model.number="i.quantity4" type="number" step="any" min="0" placeholder="4p" />
-      <input v-model="i.unit" placeholder="unit" />
-      <input v-model="i.allergens" placeholder="allergens" />
+      <input v-model="i.name" placeholder="Ingredient" aria-label="Ingredient" />
+      <label class="ing-field"><span class="ing-label">2 people</span><input v-model.number="i.quantity2" type="number" step="any" min="0" inputmode="decimal" placeholder="2p" /></label>
+      <label class="ing-field"><span class="ing-label">4 people</span><input v-model.number="i.quantity4" type="number" step="any" min="0" inputmode="decimal" placeholder="4p" /></label>
+      <label class="ing-field"><span class="ing-label">Unit</span><input v-model="i.unit" placeholder="unit" /></label>
+      <input v-model="i.allergens" placeholder="allergens" aria-label="Allergens" />
       <label style="display: flex; gap: 0.3rem; align-items: center; margin: 0"><input v-model="i.pantry" type="checkbox" style="width: auto" /> pantry</label>
       <div class="actions">
         <button class="small" title="Move up" @click="move(recipe.ingredients, idx, -1)">↑</button>
