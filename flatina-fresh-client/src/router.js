@@ -14,6 +14,7 @@ const routes = [
   { path: '/weeks/:start', component: () => import('./views/WeekView.vue'), props: true },
   { path: '/weeks/:start/add', component: () => import('./views/RecipePickerView.vue'), props: true },
   { path: '/shopping', component: () => import('./views/ShoppingListView.vue') },
+  { path: '/products', component: () => import('./views/ProductsView.vue') },
   { path: '/account', component: () => import('./views/AccountView.vue') },
   { path: '/admin', component: () => import('./views/AdminView.vue'), meta: { admin: true } },
   { path: '/:pathMatch(.*)*', redirect: '/plan' },

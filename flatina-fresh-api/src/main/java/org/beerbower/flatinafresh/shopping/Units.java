@@ -2,6 +2,7 @@ package org.beerbower.flatinafresh.shopping;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -57,6 +58,47 @@ final class Units {
             return new Amount(round(tsp.divide(BigDecimal.valueOf(3), 4, RoundingMode.HALF_UP)), "tbsp");
         }
         return new Amount(round(tsp), "tsp");
+    }
+
+    /** Teaspoons in one of each volume unit, and ounces in one of each weight unit, for package counting. */
+    private static final Map<String, BigDecimal> TSP_IN = Map.of("tsp", BigDecimal.ONE, "tbsp", BigDecimal.valueOf(3),
+            "cup", BigDecimal.valueOf(48), "fl oz", BigDecimal.valueOf(6), "ml", new BigDecimal("0.202884"));
+    private static final Map<String, BigDecimal> OZ_IN = Map.of("oz", BigDecimal.ONE, "lb", BigDecimal.valueOf(16),
+            "g", new BigDecimal("0.035274"));
+
+    /** {@code quantity} of {@code unit} expressed in {@code target}, or null when they don't measure the same thing. */
+    static BigDecimal convert(BigDecimal quantity, String unit, String target) {
+        if (unit.equals(target)) {
+            return quantity;
+        }
+        for (Map<String, BigDecimal> scale : List.of(TSP_IN, OZ_IN)) {
+            if (scale.containsKey(unit) && scale.containsKey(target)) {
+                return quantity.multiply(scale.get(unit)).divide(scale.get(target), 6, RoundingMode.HALF_UP);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whole packages needed to cover {@code amounts} (normalized unit to quantity), when each package holds
+     * {@code size} {@code sizeUnit}. Null when there's nothing to measure or an amount can't be converted.
+     */
+    static Integer packages(Map<String, BigDecimal> amounts, BigDecimal size, String sizeUnit) {
+        if (size == null || size.signum() <= 0 || amounts.isEmpty()) {
+            return null;
+        }
+        String target = normalize(sizeUnit);
+        BigDecimal total = BigDecimal.ZERO;
+        for (Map.Entry<String, BigDecimal> a : amounts.entrySet()) {
+            BigDecimal converted = convert(a.getValue(), a.getKey(), target);
+            if (converted == null) {
+                return null;
+            }
+            total = total.add(converted);
+        }
+        // Allow a sliver of rounding (2.0001 packages is 2) before rounding up.
+        BigDecimal count = total.divide(size, 6, RoundingMode.HALF_UP).subtract(new BigDecimal("0.001"));
+        return Math.max(1, count.setScale(0, RoundingMode.CEILING).intValueExact());
     }
 
     static BigDecimal round(BigDecimal value) {
